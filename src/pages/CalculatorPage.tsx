@@ -25,6 +25,7 @@ import { useRecentlyViewed } from "@/hooks/use-recently-viewed"
 import { trackCalculatorUse } from "@/hooks/use-analytics"
 import { useCustomCalculators } from "@/hooks/use-custom-calculators"
 import { useAuth } from "@/lib/auth"
+import ReportButton from "@/components/calculator/ReportButton"
 
 export default function CalculatorPage() {
   const { slug, lang, country: countryCode } = useParams<{ slug: string; lang?: string; country?: string }>()
@@ -257,6 +258,9 @@ export default function CalculatorPage() {
           />
 
           <DisclaimerBox disclaimer={calculator.disclaimer} sourceNote={calculator.sourceNote} />
+          <div className="no-print">
+            <ReportButton calculatorSlug={calculator.slug} calculatorTitle={calculator.title} />
+          </div>
           <SeoTextSection html={calculator.seoContent} />
           <InternalLinksBlock calculators={allRelated.slice(0, 5)} />
           <FAQSection faqs={calculator.faqs} />

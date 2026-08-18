@@ -18,12 +18,18 @@ export default function ContactForm() {
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const validateEmail = (email: string): boolean => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!name.trim() || !email.trim() || !subject.trim() || !message.trim()) {
-      setError("נא למלא את כל השדות")
-      return
-    }
+    if (!name.trim()) { setError("נא להזין שם"); return }
+    if (!email.trim()) { setError("נא להזין אימייל"); return }
+    if (!validateEmail(email)) { setError("כתובת אימייל לא תקינה"); return }
+    if (!subject.trim()) { setError("נא להזין נושא"); return }
+    if (!message.trim()) { setError("נא לכתוב הודעה"); return }
+    if (message.trim().length < 10) { setError("ההודעה קצרה מדי (מינימום 10 תווים)"); return }
     setSubmitting(true)
     setError(null)
     const { error: insertError } = await supabase.from("contact_submissions").insert({

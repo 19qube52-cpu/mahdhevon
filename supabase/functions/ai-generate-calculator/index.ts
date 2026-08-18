@@ -151,7 +151,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: providers } = await db
       .from("ai_providers")
-      .select("provider, api_key, base_url, default_model, is_active, priority")
+      .select("provider, api_key, base_url, default_model, is_active, priority, total_calls")
       .order("priority", { ascending: true })
 
     if (!providers || providers.length === 0) {
@@ -208,6 +208,7 @@ Deno.serve(async (req: Request) => {
     })
   } catch (err) {
     console.error("ai-generate-calculator error:", err)
-    return json({ error: err instanceof Error ? err.message : "Internal error" }, 500)
+    const msg = err instanceof Error ? err.message : String(err)
+    return json({ error: msg }, 500)
   }
 })

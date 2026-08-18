@@ -6,7 +6,7 @@ import { calculators as staticCalculators } from "@/data/calculators"
 import {
   BarChart3, Users, Mail, Calculator as CalcIcon, Trash2, Plus,
   TrendingUp, Eye, MousePointerClick, CheckCircle2, Clock,
-  Pencil, X, Save, Loader2,
+  Pencil, X, Save, Loader2, AlertCircle,
 } from "lucide-react"
 import { AiGenerateButton } from "@/components/crm/AiGenerateDialog"
 import { cn } from "@/lib/utils"
@@ -219,6 +219,16 @@ export function TelegramTab() {
   const [settings, setSettings] = useState({ bot_token: "", chat_id: "", webhook_url: "", alerts_enabled: "false" })
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
+  const [validating, setValidating] = useState(false)
+  const [validation, setValidation] = useState<{
+    ok: boolean
+    bot?: { username: string; first_name: string; id: number }
+    chat_id?: string | null
+    message_status?: "ok" | "error" | "skipped"
+    message_error?: string | null
+    webhook?: { url: string; pending_updates: number; last_error: string | null }
+    error?: string
+  } | null>(null)
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000) }
 
@@ -257,6 +267,27 @@ export function TelegramTab() {
     showToast("הגדרות נשמרו")
   }
 
+  const validateBot = async () => {
+    setValidating(true)
+    setValidation(null)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) { showToast("נדרשת התחברות"); setValidating(false); return }
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/telegram-validate`,
+        { headers: { Authorization: `Bearer ${session.access_token}` } }
+      )
+      const data = await res.json()
+      setValidation(data)
+      if (data.ok) showToast("הבוט פעיל!")
+      else showToast(data.error ?? "שגיאה")
+    } catch {
+      setValidation({ ok: false, error: "שגיאת רשת" })
+      showToast("שגיאת רשת")
+    }
+    setValidating(false)
+  }
+
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
 
   return (
@@ -281,10 +312,45 @@ export function TelegramTab() {
           <input type="checkbox" id="tg-alerts" checked={settings.alerts_enabled === "true"} onChange={e => setSettings(s => ({ ...s, alerts_enabled: e.target.checked ? "true" : "false" }))} className="w-4 h-4" />
           <Label htmlFor="tg-alerts">הפעל התראות טלגרם</Label>
         </div>
-        <Button onClick={saveSettings} disabled={saving} size="sm">
-          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-          שמור הגדרות
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={saveSettings} disabled={saving} size="sm">
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            שמור הגדרות
+          </Button>
+          <Button onClick={validateBot} disabled={validating} size="sm" variant="outline">
+            {validating ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+            בדוק חיבור
+          </Button>
+        </div>
+
+        {validation && (
+          <div className={`p-4 rounded-xl border ${validation.ok ? "bg-success/8 border-success/20" : "bg-destructive/8 border-destructive/20"}`}>
+            {validation.ok ? (
+              <div className="space-y-2 text-sm">
+                <div className="flex items-center gap-2 font-semibold text-success">
+                  <CheckCircle2 className="w-4 h-4" />
+                  בוט פעיל: @{validation.bot?.username} ({validation.bot?.first_name})
+                </div>
+                <div className="text-muted-foreground">Chat ID: {validation.chat_id || "לא מוגדר"}</div>
+                {validation.message_status === "ok" && <div className="text-success">הודעת בדיקה נשלחה בהצלחה</div>}
+                {validation.message_status === "error" && <div className="text-destructive">שליחת הודעה נכשלה: {validation.message_error}</div>}
+                {validation.message_status === "skipped" && <div className="text-muted-foreground">לא נשלחה הודעת בדיקה (Chat ID לא מוגדר)</div>}
+                {validation.webhook && (
+                  <div className="text-xs text-muted-foreground border-t border-border pt-2 mt-2">
+                    <div>Webhook: {validation.webhook.url || "לא מוגדר"}</div>
+                    <div>עדכונים ממתינים: {validation.webhook.pending_updates}</div>
+                    {validation.webhook.last_error && <div className="text-destructive">שגיאה אחרונה: {validation.webhook.last_error}</div>}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 text-sm font-semibold text-destructive">
+                <AlertCircle className="w-4 h-4" />
+                {validation.error ?? "שגיאה לא ידועה"}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="bg-card rounded-2xl border border-border overflow-hidden">
