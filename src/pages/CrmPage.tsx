@@ -45,6 +45,39 @@ export default function CrmPage() {
   const { user, loading: authLoading, openAuthDialog } = useAuth()
   const isAdmin = useIsAdmin()
 
+  const [tab, setTab] = useState<Tab>("dashboard")
+  const [queue, setQueue] = useState<QueueItem[]>([])
+  const [history, setHistory] = useState<DailyFeatured[]>([])
+  const [todayFeatured, setTodayFeatured] = useState<DailyFeatured | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [publishing, setPublishing] = useState(false)
+  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null)
+  const [editingItem, setEditingItem] = useState<QueueItem | null>(null)
+  const [deletingItem, setDeletingItem] = useState<QueueItem | null>(null)
+  const [showCreate, setShowCreate] = useState(false)
+
+  const showToast = (msg: string, type: "success" | "error" = "success") => {
+    setToast({ msg, type })
+    setTimeout(() => setToast(null), 3500)
+  }
+
+  const fetchData = useCallback(async () => {
+    setLoading(true)
+    const [qRes, hRes] = await Promise.all([
+      supabase.from("calculator_queue").select("*").order("position", { ascending: true }),
+      supabase.from("daily_featured").select("*").order("date", { ascending: false }).limit(60),
+    ])
+    if (qRes.data) setQueue(qRes.data)
+    if (hRes.data) {
+      setHistory(hRes.data)
+      const today = new Date().toISOString().split("T")[0]
+      setTodayFeatured(hRes.data.find(f => f.date === today) ?? null)
+    }
+    setLoading(false)
+  }, [])
+
+  useEffect(() => { fetchData() }, [fetchData])
+
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-muted/30">
@@ -81,41 +114,6 @@ export default function CrmPage() {
       </div>
     )
   }
-
-  const [tab, setTab] = useState<Tab>("dashboard")
-  const [queue, setQueue] = useState<QueueItem[]>([])
-  const [history, setHistory] = useState<DailyFeatured[]>([])
-  const [todayFeatured, setTodayFeatured] = useState<DailyFeatured | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [publishing, setPublishing] = useState(false)
-  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null)
-
-  // CRUD dialog state
-  const [editingItem, setEditingItem] = useState<QueueItem | null>(null)
-  const [deletingItem, setDeletingItem] = useState<QueueItem | null>(null)
-  const [showCreate, setShowCreate] = useState(false)
-
-  const showToast = (msg: string, type: "success" | "error" = "success") => {
-    setToast({ msg, type })
-    setTimeout(() => setToast(null), 3500)
-  }
-
-  const fetchData = useCallback(async () => {
-    setLoading(true)
-    const [qRes, hRes] = await Promise.all([
-      supabase.from("calculator_queue").select("*").order("position", { ascending: true }),
-      supabase.from("daily_featured").select("*").order("date", { ascending: false }).limit(60),
-    ])
-    if (qRes.data) setQueue(qRes.data)
-    if (hRes.data) {
-      setHistory(hRes.data)
-      const today = new Date().toISOString().split("T")[0]
-      setTodayFeatured(hRes.data.find(f => f.date === today) ?? null)
-    }
-    setLoading(false)
-  }, [])
-
-  useEffect(() => { fetchData() }, [fetchData])
 
   const publishToday = async () => {
     setPublishing(true)
