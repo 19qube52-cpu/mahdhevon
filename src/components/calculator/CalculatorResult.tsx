@@ -480,6 +480,152 @@ function ResultContent({ id, result }: { id: string; result: Record<string, unkn
       )
     }
 
+    case "severance-pay": {
+      const r = result as { severancePay: number; taxFreeLimit: number; taxableAmount: number; dailyRate: number }
+      return (
+        <div className="space-y-4">
+          <BigResult label="סך פיצויים" value={formatCurrency(r.severancePay)} />
+          <div className="grid grid-cols-2 gap-2">
+            <Stat label="פטור ממס" value={formatCurrency(r.taxFreeLimit)} variant="positive" />
+            <Stat label="סכום חייב במס" value={formatCurrency(r.taxableAmount)} variant="negative" />
+            <Stat label="שכר יומי" value={formatCurrency(r.dailyRate)} />
+          </div>
+        </div>
+      )
+    }
+
+    case "calorie-calculator": {
+      const r = result as { bmr: number; tdee: number; loseWeight: number; gainWeight: number; maintainWeight: number }
+      return (
+        <div className="space-y-4">
+          <BigResult label="צריכה יומית לשמירה" value={formatNumber(r.maintainWeight) + " קל"} />
+          <div className="grid grid-cols-2 gap-2">
+            <Stat label="BMR (מנוחה)" value={formatNumber(r.bmr) + " קל"} />
+            <Stat label="לירידה במשקל" value={formatNumber(r.loseWeight) + " קל"} variant="negative" />
+            <Stat label="לעלייה במשקל" value={formatNumber(r.gainWeight) + " קל"} variant="positive" />
+            <Stat label="TDEE (פעילות)" value={formatNumber(r.tdee) + " קל"} />
+          </div>
+        </div>
+      )
+    }
+
+    case "vacation-pay": {
+      const r = result as { dailyRate: number; vacationPay: number }
+      return (
+        <div className="space-y-4">
+          <BigResult label="סך פדיון חופשה" value={formatCurrency(r.vacationPay)} />
+          <div className="grid grid-cols-2 gap-2">
+            <Stat label="שכר יומי" value={formatCurrency(r.dailyRate)} />
+          </div>
+        </div>
+      )
+    }
+
+    case "sick-pay": {
+      const r = result as { dailyRate: number; sickPay: number; firstThreeDays: number; remainingDays: number }
+      return (
+        <div className="space-y-4">
+          <BigResult label="סך דמי מחלה" value={formatCurrency(r.sickPay)} />
+          <div className="grid grid-cols-2 gap-2">
+            <Stat label="3 ימים ראשונים" value={formatCurrency(r.firstThreeDays)} />
+            <Stat label="ימים נוספים" value={formatCurrency(r.remainingDays)} />
+            <Stat label="שכר יומי" value={formatCurrency(r.dailyRate)} />
+          </div>
+        </div>
+      )
+    }
+
+    case "car-lease-vs-buy": {
+      const r = result as { totalLeaseCost: number; carValueAfterDepreciation: number; buyNetLoss: number; cheaper: "lease" | "buy" | "equal" }
+      const isLeaseBetter = r.cheaper === "lease"
+      return (
+        <div className="space-y-4">
+          <div className={cn(
+            "p-4 rounded-xl text-center border",
+            isLeaseBetter ? "bg-success/10 border-success/30" : "bg-primary/10 border-primary/30"
+          )}>
+            <div className="text-2xl font-black text-success">
+              {r.cheaper === "lease" ? "ליסינג עדיף" : r.cheaper === "buy" ? "קנייה עדיפה" : "שקול"}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <Stat label="עלות ליסינג כוללת" value={formatCurrency(r.totalLeaseCost)} variant={isLeaseBetter ? "positive" : undefined} />
+            <Stat label="ערך רכב אחרי פחת" value={formatCurrency(r.carValueAfterDepreciation)} />
+            <Stat label="הפסד קנייה" value={formatCurrency(r.buyNetLoss)} variant={!isLeaseBetter ? "positive" : undefined} />
+          </div>
+        </div>
+      )
+    }
+
+    case "fuel-cost": {
+      const r = result as { monthlyLiters: number; monthlyCost: number; annualCost: number }
+      return (
+        <div className="space-y-4">
+          <BigResult label="עלות חודשית" value={formatCurrency(r.monthlyCost)} />
+          <div className="grid grid-cols-2 gap-2">
+            <Stat label="צריכה חודשית" value={formatNumber(r.monthlyLiters) + " ל'"} />
+            <Stat label="עלות שנתית" value={formatCurrency(r.annualCost)} variant="negative" />
+          </div>
+        </div>
+      )
+    }
+
+    case "inflation-impact": {
+      const r = result as { futureValue: number; purchasingPower: number; lostValue: number }
+      return (
+        <div className="space-y-4">
+          <BigResult label="ערך כוח הקנייה" value={formatCurrency(r.purchasingPower)} />
+          <div className="grid grid-cols-2 gap-2">
+            <Stat label="סכום מקורי" value={formatCurrency(r.futureValue)} />
+            <Stat label="ערך שאבד" value={formatCurrency(r.lostValue)} variant="negative" />
+          </div>
+        </div>
+      )
+    }
+
+    case "tip-calculator": {
+      const r = result as { tipAmount: number; totalAmount: number; perPerson: number }
+      return (
+        <div className="space-y-4">
+          <BigResult label="סך כולל" value={formatCurrency(r.totalAmount)} />
+          <div className="grid grid-cols-2 gap-2">
+            <Stat label="טיפ" value={formatCurrency(r.tipAmount)} />
+            <Stat label="לאדם" value={formatCurrency(r.perPerson)} />
+          </div>
+        </div>
+      )
+    }
+
+    case "water-intake": {
+      const r = result as { baseWaterMl: number; activityWaterMl: number; totalMl: number; totalLiters: number; glasses: number }
+      return (
+        <div className="space-y-4">
+          <BigResult label="צריכת מים יומית" value={formatNumber(r.totalLiters, 1) + " ל'"} />
+          <div className="grid grid-cols-2 gap-2">
+            <Stat label={'כוסות (250 מ"ל)'} value={formatNumber(r.glasses)} />
+            <Stat label="בסיס לפי משקל" value={formatNumber(r.baseWaterMl) + " מ'ל"} />
+            <Stat label="תוספת פעילות" value={formatNumber(r.activityWaterMl) + " מ'ל"} />
+          </div>
+        </div>
+      )
+    }
+
+    case "unit-converter": {
+      const r = result as { converted: number; fromLabel: string; toLabel: string; allConversions: { label: string; value: number }[] }
+      return (
+        <div className="space-y-4">
+          <BigResult label={r.toLabel} value={formatNumber(r.converted, 2)} sub={`מ-${r.fromLabel}`} />
+          {r.allConversions.length > 0 && (
+            <div className="grid grid-cols-2 gap-2">
+              {r.allConversions.map((c) => (
+                <Stat key={c.label} label={c.label} value={formatNumber(c.value, 2)} />
+              ))}
+            </div>
+          )}
+        </div>
+      )
+    }
+
     default:
       return <pre className="text-xs text-muted-foreground overflow-auto">{JSON.stringify(result, null, 2)}</pre>
   }

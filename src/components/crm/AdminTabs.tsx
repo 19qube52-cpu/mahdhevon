@@ -8,6 +8,7 @@ import {
   TrendingUp, Eye, MousePointerClick, CheckCircle2, Clock,
   Pencil, X, Save, Loader2,
 } from "lucide-react"
+import { AiGenerateButton } from "@/components/crm/AiGenerateDialog"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -320,6 +321,7 @@ export function CalculatorsTab() {
   const { customCalcs, loading, saveCalculator, deleteCalculator } = useCustomCalculators()
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<CustomCalculator | null>(null)
+  const [aiPrefill, setAiPrefill] = useState<Partial<CustomCalculator> & { slug: string; title: string } | null>(null)
   const [toast, setToast] = useState<string | null>(null)
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000) }
@@ -335,9 +337,16 @@ export function CalculatorsTab() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="font-bold text-foreground">מחשבונים מותאמים ({customCalcs.length})</h2>
-        <Button size="sm" onClick={() => { setEditing(null); setShowForm(true) }}>
-          <Plus className="w-4 h-4" />מחשבון חדש
-        </Button>
+        <div className="flex gap-2">
+          <AiGenerateButton onGenerated={(calc) => {
+            setEditing(null)
+            setShowForm(true)
+            setAiPrefill(calc)
+          }} />
+          <Button size="sm" onClick={() => { setEditing(null); setShowForm(true); setAiPrefill(null) }}>
+            <Plus className="w-4 h-4" />מחשבון חדש
+          </Button>
+        </div>
       </div>
 
       {customCalcs.length === 0 && !showForm && (
@@ -374,12 +383,13 @@ export function CalculatorsTab() {
       {showForm && (
         <CalculatorForm
           editing={editing}
+          prefill={aiPrefill}
           onSave={async (data) => {
             const { error } = await saveCalculator(data)
             if (error) { showToast(error) }
-            else { showToast("נשמר"); setShowForm(false); setEditing(null) }
+            else { showToast("נשמר"); setShowForm(false); setEditing(null); setAiPrefill(null) }
           }}
-          onClose={() => { setShowForm(false); setEditing(null) }}
+          onClose={() => { setShowForm(false); setEditing(null); setAiPrefill(null) }}
         />
       )}
 
@@ -393,19 +403,20 @@ export function CalculatorsTab() {
 }
 
 // ─── Calculator Form Dialog ─────────────────────────────────────────
-function CalculatorForm({ editing, onSave, onClose }: {
+function CalculatorForm({ editing, prefill, onSave, onClose }: {
   editing: CustomCalculator | null
+  prefill: (Partial<CustomCalculator> & { slug: string; title: string }) | null
   onSave: (data: Partial<CustomCalculator> & { slug: string; title: string }) => void
   onClose: () => void
 }) {
-  const [slug, setSlug] = useState(editing?.slug ?? "")
-  const [title, setTitle] = useState(editing?.title ?? "")
-  const [shortTitle, setShortTitle] = useState(editing?.short_title ?? "")
-  const [category, setCategory] = useState(editing?.category_slug ?? "general-tools")
-  const [description, setDescription] = useState(editing?.description ?? "")
-  const [formulaCode, setFormulaCode] = useState(editing?.formula_code ?? "const { a, b } = input\nreturn { result: a + b }")
-  const [resultLabels, setResultLabels] = useState(editing?.result_labels ?? { result: "תוצאה" })
-  const [inputsJson, setInputsJson] = useState(editing ? JSON.stringify(editing.inputs, null, 2) : '[\n  { "id": "a", "label": "ערך A", "type": "number", "defaultValue": 10 },\n  { "id": "b", "label": "ערך B", "type": "number", "defaultValue": 20 }\n]')
+  const [slug, setSlug] = useState(editing?.slug ?? prefill?.slug ?? "")
+  const [title, setTitle] = useState(editing?.title ?? prefill?.title ?? "")
+  const [shortTitle, setShortTitle] = useState(editing?.short_title ?? prefill?.short_title ?? "")
+  const [category, setCategory] = useState(editing?.category_slug ?? prefill?.category_slug ?? "general-tools")
+  const [description, setDescription] = useState(editing?.description ?? prefill?.description ?? "")
+  const [formulaCode, setFormulaCode] = useState(editing?.formula_code ?? prefill?.formula_code ?? "const { a, b } = input\nreturn { result: a + b }")
+  const [resultLabels, setResultLabels] = useState(editing?.result_labels ?? prefill?.result_labels ?? { result: "תוצאה" })
+  const [inputsJson, setInputsJson] = useState(editing ? JSON.stringify(editing.inputs, null, 2) : prefill?.inputs ? JSON.stringify(prefill.inputs, null, 2) : '[\n  { "id": "a", "label": "ערך A", "type": "number", "defaultValue": 10 },\n  { "id": "b", "label": "ערך B", "type": "number", "defaultValue": 20 }\n]')
   const [isActive, setIsActive] = useState(editing?.is_active ?? true)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -425,6 +436,11 @@ function CalculatorForm({ editing, onSave, onClose }: {
       formula_code: formulaCode,
       result_labels: resultLabels,
       inputs: parsedInputs as CustomCalculator["inputs"],
+      quick_answer: prefill?.quick_answer ?? null,
+      formula_explanation: prefill?.formula_explanation ?? null,
+      example_text: prefill?.example_text ?? null,
+      faqs: prefill?.faqs ?? [],
+      disclaimer: prefill?.disclaimer ?? null,
       is_active: isActive,
     })
     setSaving(false)
