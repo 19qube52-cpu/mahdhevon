@@ -144,6 +144,17 @@ Deno.serve(async (req: Request) => {
     const chatId = String(message.chat.id)
     const text = message.text.trim()
 
+    const db = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    )
+
+    const logEvent = async (event: string, direction: string, summary: string, logChatId: string | null = null) => {
+      try { await db.from("telegram_logs").insert({ event, direction, summary, chat_id: logChatId }) } catch { /* best-effort */ }
+    }
+
+    await logEvent("incoming_message", "in", `${message.from?.first_name ?? "Unknown"}: ${text.slice(0, 200)}`, chatId)
+
     if (text === "/start" || text === "/help") {
       await sendTelegramMessage(
         chatId,
@@ -153,6 +164,7 @@ Deno.serve(async (req: Request) => {
     }
 
     if (text === "/setup") {
+      await logEvent("setup_command", "in", "/setup", chatId)
       const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? ""
       const webhookUrl = `${supabaseUrl}/functions/v1/telegram-webhook`
       const setResp = await fetch(`https://api.telegram.org/bot${botToken}/setWebhook`, {
@@ -172,15 +184,11 @@ Deno.serve(async (req: Request) => {
 
     if (text.startsWith("/")) {
       await sendTelegramMessage(chatId, "פקודה לא מזוהה. שלח תיאור של מחשבון בשפה חופשית.")
+      await logEvent("unknown_command", "out", `Unknown: ${text.slice(0, 100)}`, chatId)
       return json({ ok: true })
     }
 
     await sendTelegramMessage(chatId, "🧠 מייצר מחשבון... זה ייקח כמה שניות.")
-
-    const db = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    )
 
     const { data: providers } = await db
       .from("ai_providers")
@@ -259,6 +267,7 @@ Deno.serve(async (req: Request) => {
       .eq("provider", chosen.provider)
 
     const siteUrl = Deno.env.get("SUPABASE_URL")?.replace(".supabase.co", "") ?? ""
+    await logEvent("calc_created", "out", `נוצר: ${title} (/${slug})`, chatId)
     await sendTelegramMessage(
       chatId,
       `✅ המחשבון "${title}" נוצר ופורסם!\n\n` +

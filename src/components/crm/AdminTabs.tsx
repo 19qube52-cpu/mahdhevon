@@ -153,40 +153,33 @@ export function AnalyticsTab() {
 
 // ─── Users Tab ──────────────────────────────────────────────────────
 export function UsersTab() {
-  const [users, setUsers] = useState<{ id: string; email: string; created_at: string; role: string | null }[]>([])
+  const [users, setUsers] = useState<{ id: string; email: string; created_at: string; role: string }[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     (async () => {
       setLoading(true)
-      const { data: rolesData } = await supabase.from("user_roles").select("user_id, role")
-      const roleMap: Record<string, string> = {}
-      ;(rolesData ?? []).forEach(r => { roleMap[r.user_id] = r.role })
-
-      const { data: profiles } = await supabase
-        .from("user_favorites")
-        .select("user_id")
-        .limit(1)
-
-      // Get unique user IDs from auth via favorites and saved_items
-      const { data: favUsers } = await supabase.from("user_favorites").select("user_id, created_at").order("created_at", { ascending: false })
-      const { data: savedUsers } = await supabase.from("saved_items").select("user_id, created_at").order("created_at", { ascending: false })
-
-      // Merge unique user_ids
-      const userMap: Record<string, string> = {}
-      ;(favUsers ?? []).forEach(f => { if (f.user_id && !userMap[f.user_id]) userMap[f.user_id] = f.created_at })
-      ;(savedUsers ?? []).forEach(s => { if (s.user_id && !userMap[s.user_id]) userMap[s.user_id] = s.created_at })
-
-      const userList = Object.entries(userMap).map(([id, created]) => ({
-        id, email: "", created_at: created, role: roleMap[id] ?? null,
-      }))
-      setUsers(userList)
+      setError(null)
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session) { setError("נדרשת התחברות"); setLoading(false); return }
+        const res = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-list-users`,
+          { headers: { Authorization: `Bearer ${session.access_token}` } }
+        )
+        if (!res.ok) { setError(`שגיאה (${res.status})`); setLoading(false); return }
+        const data = await res.json()
+        setUsers(data.users ?? [])
+      } catch {
+        setError("שגיאת רשת")
+      }
       setLoading(false)
-      void profiles
     })()
   }, [])
 
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+  if (error) return <div className="py-16 text-center text-destructive text-sm">{error}</div>
 
   return (
     <div className="bg-card rounded-2xl border border-border overflow-hidden">
@@ -205,7 +198,7 @@ export function UsersTab() {
                 <Users className="w-4 h-4 text-primary" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold text-foreground font-mono truncate">{u.id.slice(0, 8)}...</div>
+                <div className="text-sm font-semibold text-foreground truncate">{u.email || u.id.slice(0, 8) + "..."}</div>
                 <div className="text-xs text-muted-foreground">{new Date(u.created_at).toLocaleDateString("he-IL", { year: "numeric", month: "short", day: "numeric" })}</div>
               </div>
               {u.role === "admin" && (
@@ -215,6 +208,199 @@ export function UsersTab() {
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+// ─── Telegram Tab ──────────────────────────────────────────────────────
+export function TelegramTab() {
+  const [logs, setLogs] = useState<{ id: string; event: string; direction: string; summary: string; created_at: string }[]>([])
+  const [loading, setLoading] = useState(true)
+  const [settings, setSettings] = useState({ bot_token: "", chat_id: "", webhook_url: "", alerts_enabled: "false" })
+  const [saving, setSaving] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
+
+  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000) }
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    const [logsRes, sRes] = await Promise.all([
+      supabase.from("telegram_logs").select("*").order("created_at", { ascending: false }).limit(50),
+      supabase.from("site_settings").select("key, value").in("key", ["telegram_bot_token", "telegram_chat_id", "telegram_webhook_url", "telegram_alerts_enabled"]),
+    ])
+    if (logsRes.data) setLogs(logsRes.data as typeof logs)
+    const sMap: Record<string, string> = {}
+    ;(sRes.data ?? []).forEach((r: { key: string; value: string }) => { sMap[r.key] = r.value })
+    setSettings({
+      bot_token: sMap.telegram_bot_token ?? "",
+      chat_id: sMap.telegram_chat_id ?? "",
+      webhook_url: sMap.telegram_webhook_url ?? "",
+      alerts_enabled: sMap.telegram_alerts_enabled ?? "false",
+    })
+    setLoading(false)
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  const saveSettings = async () => {
+    setSaving(true)
+    const entries = [
+      { key: "telegram_bot_token", value: settings.bot_token, is_secret: true },
+      { key: "telegram_chat_id", value: settings.chat_id, is_secret: false },
+      { key: "telegram_webhook_url", value: settings.webhook_url, is_secret: false },
+      { key: "telegram_alerts_enabled", value: settings.alerts_enabled, is_secret: false },
+    ]
+    for (const e of entries) {
+      await supabase.from("site_settings").upsert({ key: e.key, value: e.value, is_secret: e.is_secret }, { onConflict: "key" })
+    }
+    setSaving(false)
+    showToast("הגדרות נשמרו")
+  }
+
+  if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
+        <h2 className="font-bold text-foreground flex items-center gap-2"><Mail className="w-4 h-4 text-primary" />הגדרות בוט טלגרם</h2>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label>Bot Token</Label>
+            <Input value={settings.bot_token} onChange={e => setSettings(s => ({ ...s, bot_token: e.target.value }))} placeholder="123456:ABC-DEF..." dir="ltr" />
+          </div>
+          <div className="space-y-2">
+            <Label>Chat ID</Label>
+            <Input value={settings.chat_id} onChange={e => setSettings(s => ({ ...s, chat_id: e.target.value }))} placeholder="-1001234567890" dir="ltr" />
+          </div>
+        </div>
+        <div className="space-y-2">
+          <Label>Webhook URL</Label>
+          <Input value={settings.webhook_url} onChange={e => setSettings(s => ({ ...s, webhook_url: e.target.value }))} placeholder="https://..." dir="ltr" />
+        </div>
+        <div className="flex items-center gap-2">
+          <input type="checkbox" id="tg-alerts" checked={settings.alerts_enabled === "true"} onChange={e => setSettings(s => ({ ...s, alerts_enabled: e.target.checked ? "true" : "false" }))} className="w-4 h-4" />
+          <Label htmlFor="tg-alerts">הפעל התראות טלגרם</Label>
+        </div>
+        <Button onClick={saveSettings} disabled={saving} size="sm">
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+          שמור הגדרות
+        </Button>
+      </div>
+
+      <div className="bg-card rounded-2xl border border-border overflow-hidden">
+        <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+          <h2 className="font-bold text-foreground">פעילות אחרונה</h2>
+          <span className="text-sm text-muted-foreground">{logs.length} אירועים</span>
+        </div>
+        {logs.length === 0 ? (
+          <div className="py-16 text-center text-muted-foreground text-sm">אין פעילות עדיין</div>
+        ) : (
+          <div className="divide-y divide-border max-h-96 overflow-y-auto">
+            {logs.map(l => (
+              <div key={l.id} className="flex items-start gap-3 px-5 py-3">
+                <span className={cn("text-xs px-2 py-0.5 rounded-full font-bold shrink-0", l.direction === "in" ? "bg-primary/10 text-primary" : "bg-success/10 text-success")}>
+                  {l.direction === "in" ? "נכנס" : "יצא"}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-foreground">{l.event}</div>
+                  <div className="text-xs text-muted-foreground truncate">{l.summary}</div>
+                </div>
+                <span className="text-xs text-muted-foreground shrink-0">{new Date(l.created_at).toLocaleString("he-IL", { hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" })}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-5 py-3 rounded-xl shadow-xl text-sm font-semibold bg-foreground text-background">
+          <CheckCircle2 className="w-4 h-4" />{toast}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Settings Tab ──────────────────────────────────────────────────────
+export function SiteSettingsTab({ daysLeft }: { daysLeft: number }) {
+  const [siteName, setSiteName] = useState("")
+  const [siteDomain, setSiteDomain] = useState("")
+  const [saving, setSaving] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
+
+  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000) }
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.from("site_settings").select("key, value").in("key", ["site_name", "site_domain"])
+      const map: Record<string, string> = {}
+      ;(data ?? []).forEach((r: { key: string; value: string }) => { map[r.key] = r.value })
+      setSiteName(map.site_name ?? "חשב לי")
+      setSiteDomain(map.site_domain ?? "")
+    })()
+  }, [])
+
+  const save = async () => {
+    setSaving(true)
+    await supabase.from("site_settings").upsert({ key: "site_name", value: siteName, is_secret: false }, { onConflict: "key" })
+    await supabase.from("site_settings").upsert({ key: "site_domain", value: siteDomain, is_secret: false }, { onConflict: "key" })
+    setSaving(false)
+    showToast("הגדרות נשמרו")
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-card rounded-2xl border border-border p-6 space-y-5">
+        <h2 className="font-bold text-foreground">הגדרות אתר</h2>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label>שם האתר</Label>
+            <Input value={siteName} onChange={e => setSiteName(e.target.value)} placeholder="חשב לי" />
+            <p className="text-xs text-muted-foreground">יופיע בכותרות, meta tags ובכל המערכת</p>
+          </div>
+          <div className="space-y-2">
+            <Label>דומיין האתר</Label>
+            <Input value={siteDomain} onChange={e => setSiteDomain(e.target.value)} placeholder="https://chasav.li" dir="ltr" />
+            <p className="text-xs text-muted-foreground">ישמש לקישורים פנימיים, canonical ו-sitemap</p>
+          </div>
+        </div>
+        <Button onClick={save} disabled={saving} size="sm">
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+          שמור
+        </Button>
+      </div>
+
+      <div className="bg-card rounded-2xl border border-border p-6 space-y-5">
+        <h2 className="font-bold text-foreground">הגדרות מתזמן</h2>
+        <div className="p-4 rounded-xl bg-success/8 border border-success/20 flex items-start gap-3">
+          <CheckCircle2 className="w-5 h-5 text-success shrink-0 mt-0.5" />
+          <div>
+            <div className="font-semibold text-sm text-foreground">מתזמן פעיל</div>
+            <div className="text-sm text-muted-foreground mt-0.5">pg_cron פועל כל יום בשעה 00:01 UTC (03:01 ישראל)</div>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <InfoRow label="Edge Function" value="publish-daily-calculator" />
+          <InfoRow label="לוח זמנים (cron)" value="1 0 * * *" />
+          <InfoRow label="ימים בתור" value={`${daysLeft}`} />
+        </div>
+      </div>
+
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-5 py-3 rounded-xl shadow-xl text-sm font-semibold bg-foreground text-background">
+          <CheckCircle2 className="w-4 h-4" />{toast}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Shared InfoRow ────────────────────────────────────────────────────
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="p-3 rounded-xl bg-muted">
+      <div className="text-xs text-muted-foreground mb-0.5">{label}</div>
+      <div className="text-sm font-semibold text-foreground">{value}</div>
     </div>
   )
 }

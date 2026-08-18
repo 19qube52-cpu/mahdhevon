@@ -25,7 +25,7 @@ async function requireAdmin(req: Request): Response | null {
     .from("user_roles")
     .select("role")
     .eq("user_id", user.id)
-    .single()
+    .maybeSingle()
   if (!roleRow || roleRow.role !== "admin") {
     return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } })
   }

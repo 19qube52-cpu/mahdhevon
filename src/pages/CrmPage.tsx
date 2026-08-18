@@ -4,7 +4,7 @@ import { useIsAdmin } from "@/hooks/use-is-admin"
 import { Button } from "@/components/ui/button"
 import { Link } from "react-router-dom"
 import {
-  LayoutDashboard, ListOrdered, History, Settings,
+  LayoutDashboard, ListOrdered, History, Settings, Send,
   Play, ArrowUp, ArrowDown, Plus, Trash2, SkipForward,
   Calendar, CheckCircle2, Clock, AlertCircle, RefreshCw,
   ExternalLink, Loader2, Calculator, Star, Pencil,
@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils"
 import { supabase, type QueueItem, type DailyFeatured } from "@/lib/supabase"
 import { calculators } from "@/data/calculators"
 import { EditItemDialog, CreateItemDialog, DeleteDialog } from "@/components/crm/CrudDialogs"
-import { AnalyticsTab, UsersTab, ContactsTab, CalculatorsTab } from "@/components/crm/AdminTabs"
+import { AnalyticsTab, UsersTab, ContactsTab, CalculatorsTab, TelegramTab, SiteSettingsTab } from "@/components/crm/AdminTabs"
 
 // ─── Edge-function helper ─────────────────────────────────────────
 async function crmOp(body: Record<string, unknown>): Promise<void> {
@@ -32,7 +32,7 @@ async function crmOp(body: Record<string, unknown>): Promise<void> {
   if (!res.ok || !data.ok) throw new Error(data.error ?? `HTTP ${res.status}`)
 }
 
-type Tab = "dashboard" | "queue" | "history" | "analytics" | "users" | "contacts" | "calculators" | "settings"
+type Tab = "dashboard" | "queue" | "history" | "analytics" | "users" | "contacts" | "calculators" | "telegram" | "settings"
 
 const CATEGORY_LABELS: Record<string, string> = {
   "salary-tax": "שכר ומסים", "mortgage-loans": "משכנתא", "health": "בריאות",
@@ -211,6 +211,7 @@ export default function CrmPage() {
     { id: "users",      label: "משתמשים",    icon: <Users className="w-4 h-4" /> },
     { id: "contacts",   label: "פניות",      icon: <Mail className="w-4 h-4" /> },
     { id: "calculators",label: "מחשבונים",  icon: <Calculator className="w-4 h-4" /> },
+    { id: "telegram",   label: "טלגרם",     icon: <Send className="w-4 h-4" /> },
     { id: "settings",   label: "הגדרות",     icon: <Settings className="w-4 h-4" /> },
   ]
 
@@ -330,7 +331,8 @@ export default function CrmPage() {
               {tab === "users" && <UsersTab />}
               {tab === "contacts" && <ContactsTab />}
               {tab === "calculators" && <CalculatorsTab />}
-              {tab === "settings" && <SettingsTab daysLeft={pending.length} />}
+              {tab === "telegram" && <TelegramTab />}
+              {tab === "settings" && <SiteSettingsTab daysLeft={pending.length} />}
             </>
           )}
         </div>
@@ -647,28 +649,6 @@ function HistoryTab({ history }: { history: DailyFeatured[] }) {
 }
 
 // ─── Settings Tab ─────────────────────────────────────────────────
-function SettingsTab({ daysLeft }: { daysLeft: number }) {
-  return (
-    <div className="space-y-4">
-      <div className="bg-card rounded-2xl border border-border p-6 space-y-5">
-        <h2 className="font-bold text-foreground">הגדרות מתזמן</h2>
-        <div className="p-4 rounded-xl bg-success/8 border border-success/20 flex items-start gap-3">
-          <CheckCircle2 className="w-5 h-5 text-success shrink-0 mt-0.5" />
-          <div>
-            <div className="font-semibold text-sm text-foreground">מתזמן פעיל</div>
-            <div className="text-sm text-muted-foreground mt-0.5">pg_cron פועל כל יום בשעה 00:01 UTC (03:01 ישראל)</div>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <InfoRow label="Edge Function" value="publish-daily-calculator" />
-          <InfoRow label="לוח זמנים (cron)" value="1 0 * * *" />
-          <InfoRow label="ימים בתור" value={`${daysLeft}`} />
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // ─── Shared Sub-components ────────────────────────────────────────
 function StatCard({ icon, label, value, sub }: { icon: React.ReactNode; label: string; value: number; sub: string }) {
   return (
@@ -676,15 +656,6 @@ function StatCard({ icon, label, value, sub }: { icon: React.ReactNode; label: s
       <div className="flex items-center gap-2 mb-3">{icon}<span className="text-sm text-muted-foreground font-medium">{label}</span></div>
       <div className="text-3xl font-extrabold text-foreground">{value}</div>
       <div className="text-xs text-muted-foreground mt-1">{sub}</div>
-    </div>
-  )
-}
-
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="p-3 rounded-xl bg-muted">
-      <div className="text-xs text-muted-foreground mb-0.5">{label}</div>
-      <div className="text-sm font-semibold text-foreground">{value}</div>
     </div>
   )
 }

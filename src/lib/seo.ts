@@ -14,6 +14,7 @@ interface PageMetaOptions {
   ogDescription?: string
   robots?: string
   hreflangs?: HreflangEntry[]
+  ogSiteName?: string
 }
 
 export function usePageMeta({
@@ -25,6 +26,7 @@ export function usePageMeta({
   ogDescription,
   robots = "index, follow",
   hreflangs,
+  ogSiteName,
 }: PageMetaOptions) {
   useEffect(() => {
     document.title = title
@@ -39,7 +41,7 @@ export function usePageMeta({
     setOgMeta("og:description", ogDescription ?? description)
     setOgMeta("og:type", "website")
     setOgMeta("og:locale", "he_IL")
-    setOgMeta("og:site_name", "חשב לי")
+    setOgMeta("og:site_name", ogSiteName ?? "חשב לי")
 
     setMeta("twitter:card", "summary")
     setMeta("twitter:title", ogTitle ?? title)
@@ -72,7 +74,7 @@ export function usePageMeta({
       xDefault.href = canonical ?? window.location.href
       document.head.appendChild(xDefault)
     }
-  }, [title, description, canonical, keywords, ogTitle, ogDescription, robots, hreflangs])
+  }, [title, description, canonical, keywords, ogTitle, ogDescription, robots, hreflangs, ogSiteName])
 }
 
 function setMeta(name: string, content: string) {
