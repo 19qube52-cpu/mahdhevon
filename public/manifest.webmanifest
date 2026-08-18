@@ -1,0 +1,21 @@
+{
+  "name": "חשב לי",
+  "short_name": "חשב לי",
+  "description": "כל המחשבונים החשובים לישראלים במקום אחד",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F8FAFC",
+  "theme_color": "#2563EB",
+  "lang": "he",
+  "dir": "rtl",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["finance", "utilities"],
+  "screenshots": []
+}
