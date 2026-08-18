@@ -6,7 +6,7 @@ import { calculators as staticCalculators } from "@/data/calculators"
 import {
   BarChart3, Users, Mail, Calculator as CalcIcon, Trash2, Plus,
   TrendingUp, Eye, MousePointerClick, CheckCircle2, Clock,
-  Pencil, X, Save, Loader2, AlertCircle,
+  Pencil, X, Save, Loader2, AlertCircle, Send,
 } from "lucide-react"
 import { AiGenerateButton } from "@/components/crm/AiGenerateDialog"
 import { cn } from "@/lib/utils"
@@ -220,6 +220,7 @@ export function TelegramTab() {
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const [validating, setValidating] = useState(false)
+  const [settingWebhook, setSettingWebhook] = useState(false)
   const [validation, setValidation] = useState<{
     ok: boolean
     bot?: { username: string; first_name: string; id: number }
@@ -288,6 +289,28 @@ export function TelegramTab() {
     setValidating(false)
   }
 
+  const setWebhook = async () => {
+    setSettingWebhook(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) { showToast("נדרשת התחברות"); setSettingWebhook(false); return }
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/telegram-set-webhook`,
+        { method: "POST", headers: { Authorization: `Bearer ${session.access_token}` } }
+      )
+      const data = await res.json()
+      if (data.ok) {
+        showToast("Webhook הוגדר!")
+        validateBot()
+      } else {
+        showToast(data.error ?? "שגיאה בהגדרת webhook")
+      }
+    } catch {
+      showToast("שגיאת רשת")
+    }
+    setSettingWebhook(false)
+  }
+
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
 
   return (
@@ -312,7 +335,7 @@ export function TelegramTab() {
           <input type="checkbox" id="tg-alerts" checked={settings.alerts_enabled === "true"} onChange={e => setSettings(s => ({ ...s, alerts_enabled: e.target.checked ? "true" : "false" }))} className="w-4 h-4" />
           <Label htmlFor="tg-alerts">הפעל התראות טלגרם</Label>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Button onClick={saveSettings} disabled={saving} size="sm">
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
             שמור הגדרות
@@ -320,6 +343,10 @@ export function TelegramTab() {
           <Button onClick={validateBot} disabled={validating} size="sm" variant="outline">
             {validating ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
             בדוק חיבור
+          </Button>
+          <Button onClick={setWebhook} disabled={settingWebhook} size="sm" variant="outline">
+            {settingWebhook ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            הגדר Webhook
           </Button>
         </div>
 
@@ -670,6 +697,7 @@ function CalculatorForm({ editing, prefill, onSave, onClose }: {
   const [resultLabels, setResultLabels] = useState(editing?.result_labels ?? prefill?.result_labels ?? { result: "תוצאה" })
   const [inputsJson, setInputsJson] = useState(editing ? JSON.stringify(editing.inputs, null, 2) : prefill?.inputs ? JSON.stringify(prefill.inputs, null, 2) : '[\n  { "id": "a", "label": "ערך A", "type": "number", "defaultValue": 10 },\n  { "id": "b", "label": "ערך B", "type": "number", "defaultValue": 20 }\n]')
   const [isActive, setIsActive] = useState(editing?.is_active ?? true)
+  const [imageUrl, setImageUrl] = useState(editing?.image_url ?? prefill?.image_url ?? "")
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -693,6 +721,7 @@ function CalculatorForm({ editing, prefill, onSave, onClose }: {
       example_text: prefill?.example_text ?? null,
       faqs: prefill?.faqs ?? [],
       disclaimer: prefill?.disclaimer ?? null,
+      image_url: imageUrl.trim() || null,
       is_active: isActive,
     })
     setSaving(false)
@@ -756,6 +785,12 @@ function CalculatorForm({ editing, prefill, onSave, onClose }: {
             onChange={e => { try { setResultLabels(JSON.parse(e.target.value)) } catch { /* ignore */ } }}
             rows={3} className="font-mono text-xs" dir="ltr"
           />
+        </div>
+
+        <div className="space-y-2">
+          <Label>כתובת תמונה (אופציונלי)</Label>
+          <Input value={imageUrl} onChange={e => setImageUrl(e.target.value)} placeholder="https://..." dir="ltr" />
+          {imageUrl && <img src={imageUrl} alt="תצוגה מקדימה" className="w-full h-32 object-cover rounded-lg border border-border" />}
         </div>
 
         <div className="flex items-center gap-2">

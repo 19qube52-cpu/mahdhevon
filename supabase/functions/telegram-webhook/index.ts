@@ -166,7 +166,10 @@ Deno.serve(async (req: Request) => {
     if (text === "/setup") {
       await logEvent("setup_command", "in", "/setup", chatId)
       const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? ""
-      const webhookUrl = `${supabaseUrl}/functions/v1/telegram-webhook`
+      const webhookSecret = Deno.env.get("TELEGRAM_WEBHOOK_SECRET") ?? ""
+      const webhookUrl = webhookSecret
+        ? `${supabaseUrl}/functions/v1/telegram-webhook/${webhookSecret}`
+        : `${supabaseUrl}/functions/v1/telegram-webhook`
       const setResp = await fetch(`https://api.telegram.org/bot${botToken}/setWebhook`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

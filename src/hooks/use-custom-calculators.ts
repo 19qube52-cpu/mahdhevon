@@ -41,6 +41,7 @@ export function useCustomCalculators() {
         disclaimer: calc.disclaimer ?? null,
         source_note: calc.source_note ?? null,
         seo_content: calc.seo_content ?? null,
+        image_url: calc.image_url ?? null,
         is_active: calc.is_active ?? true,
       })
       .select()
@@ -90,6 +91,7 @@ export function useCustomCalculators() {
     disclaimer: cc.disclaimer ?? "",
     sourceNote: cc.source_note ?? "",
     seoContent: cc.seo_content ?? "",
+    imageUrl: cc.image_url ?? undefined,
   }), [])
 
   return { customCalcs, loading, saveCalculator, deleteCalculator, toCalculatorType, reload: load }

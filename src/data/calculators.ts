@@ -44,6 +44,7 @@ export interface Calculator {
   disclaimer: string
   sourceNote: string
   seoContent: string
+  imageUrl?: string
 }
 
 export const calculators: Calculator[] = [

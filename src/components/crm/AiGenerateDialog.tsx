@@ -16,6 +16,8 @@ export function AiGenerateDialog({ onGenerated, onClose }: AiGenerateProps) {
   const [prompt, setPrompt] = useState("")
   const [provider, setProvider] = useState<"auto" | "grok" | "ollama">("auto")
   const [loading, setLoading] = useState(false)
+  const [generatingImage, setGeneratingImage] = useState(false)
+  const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const examples = [
@@ -25,10 +27,32 @@ export function AiGenerateDialog({ onGenerated, onClose }: AiGenerateProps) {
     'מחשבון החזר הוצאות רכב לעצמאי לפי ק"מ ותעריף',
   ]
 
+  const generateImage = async (calcTitle: string, calcDescription: string): Promise<string | null> => {
+    setGeneratingImage(true)
+    try {
+      const imagePrompt = `A modern, clean illustration for a financial calculator app. Subject: "${calcTitle}". Description: "${calcDescription}". Style: flat design, minimal, professional, blue and green color palette, no text, no words, no letters. Square composition.`
+      const { data, error: fnError } = await supabase.functions.invoke("ai-generate-image", {
+        body: { prompt: imagePrompt },
+      })
+      if (fnError) throw new Error(fnError.message)
+      if (data?.error) throw new Error(data.error)
+      if (data?.url) {
+        setImageUrl(data.url)
+        return data.url
+      }
+      return null
+    } catch {
+      return null
+    } finally {
+      setGeneratingImage(false)
+    }
+  }
+
   const handleGenerate = async () => {
     if (!prompt.trim()) { setError("נא לתאר את המחשבון"); return }
     setError(null)
     setLoading(true)
+    setImageUrl(null)
 
     try {
       const { data, error: fnError } = await supabase.functions.invoke("ai-generate-calculator", {
@@ -40,12 +64,17 @@ export function AiGenerateDialog({ onGenerated, onClose }: AiGenerateProps) {
       if (!data?.calculator) throw new Error("ה-AI לא החזיר תוצאה")
 
       const calc = data.calculator as Record<string, unknown>
+      const title = String(calc.title ?? "")
+      const description = String(calc.description ?? "")
+
+      const generatedImageUrl = await generateImage(title, description)
+
       onGenerated({
         slug: String(calc.slug ?? ""),
-        title: String(calc.title ?? ""),
-        short_title: String(calc.short_title ?? calc.title ?? ""),
+        title,
+        short_title: String(calc.short_title ?? title),
         category_slug: String(calc.category_slug ?? "general-tools"),
-        description: String(calc.description ?? ""),
+        description,
         inputs: Array.isArray(calc.inputs) ? calc.inputs : [],
         formula_code: String(calc.formula_code ?? "return {}"),
         result_labels: (calc.result_labels ?? {}) as Record<string, string>,
@@ -54,6 +83,7 @@ export function AiGenerateDialog({ onGenerated, onClose }: AiGenerateProps) {
         example_text: String(calc.example_text ?? ""),
         faqs: Array.isArray(calc.faqs) ? calc.faqs : [],
         disclaimer: String(calc.disclaimer ?? ""),
+        image_url: generatedImageUrl ?? undefined,
       })
     } catch (err) {
       setError(err instanceof Error ? err.message : "שגיאה לא צפויה")
@@ -111,11 +141,24 @@ export function AiGenerateDialog({ onGenerated, onClose }: AiGenerateProps) {
 
         {error && <p className="text-sm text-destructive">{error}</p>}
 
+        {generatingImage && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            מייצר תמונה למחשבון...
+          </div>
+        )}
+
+        {imageUrl && !loading && (
+          <div className="rounded-xl overflow-hidden border border-border">
+            <img src={imageUrl} alt="תמונת המחשבון" className="w-full h-48 object-cover" />
+          </div>
+        )}
+
         <div className="flex gap-2 justify-end">
           <Button variant="outline" onClick={onClose}>ביטול</Button>
-          <Button onClick={handleGenerate} disabled={loading}>
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
-            {loading ? "מייצר..." : "צור מחשבון"}
+          <Button onClick={handleGenerate} disabled={loading || generatingImage}>
+            {loading || generatingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
+            {loading ? "מייצר..." : generatingImage ? "מייצר תמונה..." : "צור מחשבון"}
           </Button>
         </div>
       </div>
