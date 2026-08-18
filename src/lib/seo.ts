@@ -41,7 +41,7 @@ export function usePageMeta({
     setOgMeta("og:description", ogDescription ?? description)
     setOgMeta("og:type", "website")
     setOgMeta("og:locale", "he_IL")
-    setOgMeta("og:site_name", ogSiteName ?? "חשב לי")
+    setOgMeta("og:site_name", ogSiteName ?? "הישב")
 
     setMeta("twitter:card", "summary")
     setMeta("twitter:title", ogTitle ?? title)

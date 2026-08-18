@@ -53,13 +53,13 @@ export default function EmbedPage() {
           <div className="flex items-center justify-between mb-2">
             <h1 className="text-lg font-bold text-foreground">{calculator.title}</h1>
             <a
-              href={`https://chasav.li/calculators/${calculator.slug}`}
+              href={`https://hishov.com/calculators/${calculator.slug}`}
               target="_blank"
               rel="noopener"
               className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
             >
               <Link className="w-3 h-3" />
-              חשב לי
+              הישב
             </a>
           </div>
 

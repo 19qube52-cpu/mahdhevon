@@ -4,8 +4,8 @@ import ContactForm from "@/components/shared/ContactForm"
 
 export default function ContactPage() {
   usePageMeta({
-    title: "צור קשר | חשב לי",
-    description: "צור קשר עם צוות חשב לי לכל שאלה, הצעה או פנייה.",
+    title: "צור קשר | הישב",
+    description: "צור קשר עם צוות הישב לכל שאלה, הצעה או פנייה.",
     robots: "noindex, nofollow",
   })
 

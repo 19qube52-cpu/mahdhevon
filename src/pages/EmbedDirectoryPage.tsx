@@ -7,15 +7,15 @@ import { toast } from "sonner"
 
 export default function EmbedDirectoryPage() {
   usePageMeta({
-    title: "הטמעת מחשבונים — קוד להטמעה באתר | חשב לי",
-    description: "הטמינו את המחשבונים של חשב לי באתר שלכם בחינם. קוד iframe מוכן להעתקה, עם קרדיט וקישור.",
+    title: "הטמעת מחשבונים — קוד להטמעה באתר | הישב",
+    description: "הטמינו את המחשבונים של הישב באתר שלכם בחינם. קוד iframe מוכן להעתקה, עם קרדיט וקישור.",
     canonical: `${window.location.origin}/embed-directory`,
   })
 
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null)
 
   const copyEmbedCode = (slug: string) => {
-    const code = `<iframe src="https://chasav.li/embed/${slug}" width="100%" height="600" frameborder="0" title="מחשבון חשב לי" style="border-radius:12px;"></iframe>`
+    const code = `<iframe src="https://hishov.com/embed/${slug}" width="100%" height="600" frameborder="0" title="מחשבון הישב" style="border-radius:12px;"></iframe>`
     navigator.clipboard.writeText(code)
     setCopiedSlug(slug)
     toast.success("קוד ההטמעה הועתק!")
@@ -54,7 +54,7 @@ export default function EmbedDirectoryPage() {
             </div>
             <div className="flex items-center gap-2">
               <code className="text-xs bg-muted px-3 py-2 rounded-lg text-muted-foreground max-w-[300px] truncate">
-                {`<iframe src="chasav.li/embed/${calc.slug}" ...>`}
+                {`<iframe src="hishov.com/embed/${calc.slug}" ...>`}
               </code>
               <button
                 onClick={() => copyEmbedCode(calc.slug)}
@@ -75,7 +75,7 @@ export default function EmbedDirectoryPage() {
         <h2 className="font-bold text-foreground mb-3">תנאי שימוש</h2>
         <ul className="text-sm text-muted-foreground space-y-2 list-disc mr-6">
           <li>ההטמעה בחינם ומותרת לכל אתר, כולל מסחרי</li>
-          <li>חובה לשמור את הקרדיט והקישור לאתר חשב לי</li>
+          <li>חובה לשמור את הקרדיט והקישור לאתר הישב</li>
           <li>אין לשנות או להסתיר את קוד ההטמעה</li>
           <li>המחשבונים מתעדכנים אוטומטית — אין צורך לעדכן ידנית</li>
         </ul>

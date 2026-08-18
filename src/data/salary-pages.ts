@@ -46,7 +46,7 @@ export function generateSalaryPages(): SalaryPage[] {
       amount,
       slug,
       title: `משכורת ${formatNis(amount)} ברוטו — כמה נטו?`,
-      seoTitle: `משכורת ${formatNis(amount)} ברוטו כמה נטו ${COUNTRY.taxYear} | חשב לי`,
+      seoTitle: `משכורת ${formatNis(amount)} ברוטו כמה נטו ${COUNTRY.taxYear} | הישב`,
       seoDescription: `משכורת ${formatNis(amount)} ברוטו → ${formatNis(neto)} נטו. מס הכנסה ${formatNis(tax)}, ביטוח לאומי ${formatNis(ni)}, שיעור מס אפקטיבי ${effectiveRate}%. חישוב מדויק ל-${COUNTRY.taxYear}.`,
       keywords: [
         `${amount} ברוטו`, `${amount} נטו`, `משכורת ${amount}`, `כמה נטו מ${amount} ברוטו`,
@@ -77,7 +77,7 @@ export function getSalaryPage(slug: string): SalaryPage | undefined {
     ...page,
     slug,
     title: `משכורת ${formatNis(page.amount)} ברוטו — כמה נטו בשנת ${year}?`,
-    seoTitle: `משכורת ${formatNis(page.amount)} ברוטו כמה נטו ${year} | חשב לי`,
+    seoTitle: `משכורת ${formatNis(page.amount)} ברוטו כמה נטו ${year} | הישב`,
     seoDescription: `משכורת ${formatNis(page.amount)} ברוטו → ${formatNis(Math.round(page.result.netSalary))} נטו לפי חישוב שנת ${year}.`,
     h1: `משכורת ${formatNis(page.amount)} ברוטו — כמה נשאר נטו בשנת ${year}?`,
     introParagraph: `בשנת ${year}, משכורת של ${formatNis(page.amount)} ברוטו מניבה לפי החישוב הנוכחי ${formatNis(Math.round(page.result.netSalary))} נטו לחודש. התוצאה היא הערכה המבוססת על 2.25 נקודות זיכוי ועל נתוני המס הזמינים למחשבון.`,

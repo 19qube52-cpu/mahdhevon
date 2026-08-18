@@ -46,7 +46,7 @@ function Empty({ text }: { text: string }) {
 
 export default function AccountPage() {
   usePageMeta({
-    title: "הדשבורד שלי | חשב לי",
+    title: "הדשבורד שלי | הישב",
     description: "כל המחשבונים והתוצאות שלך במקום אחד.",
     robots: "noindex, nofollow",
   })

@@ -16,7 +16,7 @@ export default function Footer() {
               <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
                 <Calculator className="w-5 h-5 text-primary-foreground" />
               </div>
-              <span className="font-bold text-xl">חשב לי</span>
+              <span className="font-bold text-xl">הישב</span>
             </div>
             <p className="text-sm text-primary-foreground/70 leading-relaxed">
               כל המחשבונים והזכויות החשובים לישראלים במקום אחד. שכר, מסים, ביטוח לאומי, משכנתא ועוד.
@@ -171,7 +171,7 @@ export default function Footer() {
         {/* Bottom bar */}
         <div className="border-t border-primary-foreground/20 mt-10 pt-6 flex flex-col sm:flex-row justify-between items-center gap-3">
           <p className="text-xs text-primary-foreground/50 text-center">
-            © {new Date().getFullYear()} חשב לי · Powered by Joseph Elyashar Labs by Elyasharlabs.com
+            © {new Date().getFullYear()} הישב · Powered by Joseph Elyashar Labs by Elyasharlabs.com
           </p>
           <p className="text-xs text-primary-foreground/50 text-center max-w-lg">
             האתר מספק מידע כללי ואינו מהווה ייעוץ מקצועי. לכל שאלה משפטית, פיננסית או רפואית יש לפנות לבעל מקצוע מוסמך.

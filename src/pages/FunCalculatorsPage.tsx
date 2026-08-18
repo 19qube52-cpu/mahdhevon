@@ -7,7 +7,7 @@ import TransitFareCalculator from "@/components/fun/TransitFareCalculator"
 
 export default function FunCalculatorsPage() {
   usePageMeta({
-    title: "מחשבונים מגניבים – חשב לי",
+    title: "מחשבונים מגניבים – הישב",
     description:
       "מחשבונים אינטראקטיביים עם אנימציות: כמה באמת נשאר לך מהשכר, מונה מונית חי, ואם משתלם לך חופשי חודשי בתחבורה הציבורית.",
     keywords: ["מחשבונים מגניבים", "מונה מונית", "מחיר אוטובוס", "כמה נשאר לי מהשכר", "חופשי חודשי"],

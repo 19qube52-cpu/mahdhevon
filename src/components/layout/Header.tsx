@@ -37,7 +37,7 @@ export default function Header() {
             <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
               <Calculator className="w-5 h-5 text-primary-foreground" />
             </div>
-            <span className="font-bold text-xl text-foreground hidden sm:block">חשב לי</span>
+            <span className="font-bold text-xl text-foreground hidden sm:block">הישב</span>
           </Link>
 
           {/* Desktop nav */}

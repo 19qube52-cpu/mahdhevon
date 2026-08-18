@@ -7,7 +7,7 @@ export default function NotFoundPage() {
   const popular = getPopularCalculators().slice(0, 6)
 
   usePageMeta({
-    title: "דף לא נמצא (404) | חשב לי",
+    title: "דף לא נמצא (404) | הישב",
     description: "הדף שחיפשת לא נמצא.",
     robots: "noindex, nofollow",
   })

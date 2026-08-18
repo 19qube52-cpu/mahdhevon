@@ -18,7 +18,7 @@ import ContactPage from "@/pages/ContactPage"
 
 export default function App() {
   return (
-    <ThemeProvider defaultTheme="system" storageKey="chasav-li-theme">
+    <ThemeProvider defaultTheme="system" storageKey="hishov-theme">
       <BrowserRouter>
         <AuthProvider>
           <CountryProvider>

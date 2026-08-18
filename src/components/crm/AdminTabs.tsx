@@ -428,7 +428,7 @@ export function SiteSettingsTab({ daysLeft }: { daysLeft: number }) {
       const { data } = await supabase.from("site_settings").select("key, value").in("key", ["site_name", "site_domain"])
       const map: Record<string, string> = {}
       ;(data ?? []).forEach((r: { key: string; value: string }) => { map[r.key] = r.value })
-      setSiteName(map.site_name ?? "חשב לי")
+      setSiteName(map.site_name ?? "הישב")
       setSiteDomain(map.site_domain ?? "")
     })()
   }, [])
@@ -448,12 +448,12 @@ export function SiteSettingsTab({ daysLeft }: { daysLeft: number }) {
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label>שם האתר</Label>
-            <Input value={siteName} onChange={e => setSiteName(e.target.value)} placeholder="חשב לי" />
+            <Input value={siteName} onChange={e => setSiteName(e.target.value)} placeholder="הישב" />
             <p className="text-xs text-muted-foreground">יופיע בכותרות, meta tags ובכל המערכת</p>
           </div>
           <div className="space-y-2">
             <Label>דומיין האתר</Label>
-            <Input value={siteDomain} onChange={e => setSiteDomain(e.target.value)} placeholder="https://chasav.li" dir="ltr" />
+            <Input value={siteDomain} onChange={e => setSiteDomain(e.target.value)} placeholder="https://hishov.com" dir="ltr" />
             <p className="text-xs text-muted-foreground">ישמש לקישורים פנימיים, canonical ו-sitemap</p>
           </div>
         </div>

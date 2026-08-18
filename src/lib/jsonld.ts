@@ -45,7 +45,7 @@ export function useCalculatorJsonLd(calculator: Calculator, breadcrumbs: Breadcr
       {
         "@context": "https://schema.org",
         "@type": "Organization",
-        name: "חשב לי",
+        name: "הישב",
         description: "מחשבוני ישראל – כל המחשבונים החשובים לישראלים",
         url: window.location.origin,
         inLanguage: "he",

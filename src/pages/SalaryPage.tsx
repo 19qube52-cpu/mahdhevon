@@ -10,7 +10,7 @@ export default function SalaryPage() {
   const page = slug ? getSalaryPage(slug) : undefined
 
   usePageMeta({
-    title: page?.seoTitle ?? "משכורת ברוטו לנטו | חשב לי",
+    title: page?.seoTitle ?? "משכורת ברוטו לנטו | הישב",
     description: page?.seoDescription ?? "",
     canonical: page ? `${window.location.origin}/salary/${page.slug}` : undefined,
     keywords: page?.keywords,

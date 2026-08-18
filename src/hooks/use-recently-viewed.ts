@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react"
 
-const KEY = "chasav-li-recent"
+const KEY = "hishov-recent"
 const MAX = 8
 
 export interface RecentEntry {

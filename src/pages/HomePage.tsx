@@ -18,9 +18,9 @@ export default function HomePage() {
   const todayFeatured = useTodayFeatured()
 
   usePageMeta({
-    title: "חשב לי – כל המחשבונים החשובים בישראל במקום אחד",
+    title: "הישב – כל המחשבונים החשובים בישראל במקום אחד",
     description: 'מחשבוני ישראל: שכר נטו-ברוטו, ביטוח לאומי, מס הכנסה, משכנתא, BMI, מע"מ, פנסיה ועוד. כל החישובים החשובים לישראלים בחינם.',
-    keywords: ["מחשבונים ישראל", "חשב לי", "שכר ישראל", "מס הכנסה", "ביטוח לאומי", "משכנתא ישראל"],
+    keywords: ["מחשבונים ישראל", "הישב", "שכר ישראל", "מס הכנסה", "ביטוח לאומי", "משכנתא ישראל"],
   })
 
   const salaryCalcs = calculators.filter((c) => c.categorySlug === "salary-tax")

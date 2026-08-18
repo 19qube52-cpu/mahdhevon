@@ -4,7 +4,7 @@ import { countries } from "../src/data/countries"
 import { getAllSalarySlugs } from "../src/data/salary-pages"
 import { writeFileSync } from "fs"
 
-const BASE_URL = "https://chasav.li"
+const BASE_URL = "https://hishov.com"
 const today = new Date().toISOString().split("T")[0]
 
 const countryEntries = Object.values(countries)

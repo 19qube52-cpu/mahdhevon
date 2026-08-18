@@ -15,8 +15,8 @@ export default function CategoryPage() {
 
   usePageMeta({
     title: category
-      ? `${category.name} – מחשבונים ישראלים | חשב לי`
-      : "קטגוריה | חשב לי",
+      ? `${category.name} – מחשבונים ישראלים | הישב`
+      : "קטגוריה | הישב",
     description: category
       ? `${category.description} – כל המחשבונים בתחום ${category.name} לישראלים. חינם ומהיר.`
       : "קטגוריית מחשבונים",
