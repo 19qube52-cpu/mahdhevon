@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { Calculator as CalcIcon, FileText, LayoutGrid, Sparkles } from "lucide-react"
+import { Calculator as CalcIcon, LayoutGrid } from "lucide-react"
 import {
   CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator,
 } from "@/components/ui/command"
@@ -26,14 +26,6 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
       <CommandList>
         <CommandEmpty>לא נמצאו תוצאות.</CommandEmpty>
         <CommandGroup heading="כלים">
-          <CommandItem value="מפענח מכתבים AI" onSelect={() => go("/letter-explainer")}>
-            <FileText className="w-4 h-4 text-primary" />
-            <span>מפענח מכתבים AI</span>
-          </CommandItem>
-          <CommandItem value="החשבון שלי מועדפים שמורים" onSelect={() => go("/account")}>
-            <Sparkles className="w-4 h-4 text-primary" />
-            <span>החשבון שלי</span>
-          </CommandItem>
         </CommandGroup>
         <CommandSeparator />
         <CommandGroup heading="קטגוריות">

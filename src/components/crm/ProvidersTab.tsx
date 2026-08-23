@@ -5,14 +5,13 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { supabase } from "@/lib/supabase"
+import { adminFetch } from "@/lib/admin-api"
 
-const SUPA_URL = import.meta.env.VITE_SUPABASE_URL as string
-const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string
 
 async function pmOp(action: string, body: Record<string, unknown>) {
-  const res = await fetch(`${SUPA_URL}/functions/v1/provider-manager`, {
+  const res = await adminFetch("provider-manager", {
     method: "POST",
-    headers: { Authorization: `Bearer ${ANON_KEY}`, "Content-Type": "application/json" },
+
     body: JSON.stringify({ action, ...body }),
   })
   return res.json()
@@ -112,10 +111,10 @@ export function ProvidersTab({ onToast }: { onToast: (msg: string, type?: "succe
   }
 
   const sendTestAlert = async () => {
-    const res = await fetch(`${SUPA_URL}/functions/v1/telegram-alerts`, {
+    const res = await adminFetch("telegram-alerts", {
       method: "POST",
-      headers: { Authorization: `Bearer ${ANON_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "stats" }),
+
+      body: JSON.stringify({ action: "test" }),
     })
     const d = await res.json()
     if (d.ok) onToast("הודעת בדיקה נשלחה לטלגרם")

@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { createClient } from "npm:@supabase/supabase-js@2"
+import { authErrorResponse, requireAdmin } from "../_shared/admin-auth.ts"
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -13,9 +14,14 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    await requireAdmin(req)
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     const db = createClient(supabaseUrl, supabaseKey)
+    const body = await req.json().catch(() => ({}))
+    if (body.dry_run === true) {
+      return new Response(JSON.stringify({ success: true, dry_run: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } })
+    }
 
     const today = new Date().toISOString().split("T")[0] // YYYY-MM-DD
 
@@ -97,6 +103,8 @@ Deno.serve(async (req: Request) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     )
   } catch (err) {
+    const authResponse = authErrorResponse(err, corsHeaders)
+    if (authResponse) return authResponse
     console.error("publish-daily-calculator error:", err)
     return new Response(
       JSON.stringify({ success: false, error: err instanceof Error ? err.message : String(err) }),

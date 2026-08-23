@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
-import { createClient } from "npm:@supabase/supabase-js@2"
+import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2"
+import { authErrorResponse, requireAdmin } from "../_shared/admin-auth.ts"
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -17,6 +18,7 @@ interface Provider {
   priority: number
   is_active: boolean
   error_count: number
+  total_calls: number
 }
 
 // ─── Provider adapters ────────────────────────────────────────────
@@ -98,25 +100,26 @@ async function callGemini(
 
 // ─── Multi-provider dispatcher ────────────────────────────────────
 async function callAI(
-  db: ReturnType<typeof createClient>,
+  db: SupabaseClient<any, "public", "public", any, any>,
   system: string,
   user: string,
   maxTokens = 800
 ): Promise<{ text: string; provider: string; model: string }> {
-  const { data: providers } = await db
+  const { data } = await db
     .from("ai_providers")
     .select("*")
     .eq("is_active", true)
     .order("priority", { ascending: true })
 
-  if (!providers?.length) {
+  const providers = (data ?? []) as Provider[]
+  if (!providers.length) {
     // Hardcoded fallback to Grok env key
     const xaiKey = Deno.env.get("XAI_API_KEY")
     if (!xaiKey) throw new Error("No active AI providers configured")
     const fallback: Provider = {
       id: "fallback", provider: "grok", api_key: xaiKey,
       base_url: "https://api.x.ai/v1", default_model: "grok-3-latest",
-      priority: 0, is_active: true, error_count: 0
+      priority: 0, is_active: true, error_count: 0, total_calls: 0
     }
     const text = await callOpenAICompat(fallback, system, user, maxTokens)
     return { text, provider: "grok", model: "grok-3-latest" }
@@ -172,6 +175,7 @@ Deno.serve(async (req: Request) => {
 
   try {
     const body = await req.json()
+    await requireAdmin(req)
     const { action, calculator_id, calculator_title, queue, context } = body
 
     let resultText = ""
@@ -311,6 +315,8 @@ Deno.serve(async (req: Request) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     )
   } catch (err) {
+    const authResponse = authErrorResponse(err, corsHeaders)
+    if (authResponse) return authResponse
     console.error("ai-crm-assistant error:", err)
     return new Response(
       JSON.stringify({ ok: false, error: err instanceof Error ? err.message : String(err) }),

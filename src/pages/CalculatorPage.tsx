@@ -18,7 +18,7 @@ import InternalLinksBlock from "@/components/calculator/InternalLinksBlock"
 import ResultToolbar from "@/components/calculator/ResultToolbar"
 import CalculatorActions from "@/components/calculator/CalculatorActions"
 import AmortizationTable from "@/components/calculator/AmortizationTable"
-import { Calculator, Info, Table, Scale, FileText } from "lucide-react"
+import { Calculator, Info, Table, AlertTriangle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useRecentlyViewed } from "@/hooks/use-recently-viewed"
 
@@ -96,6 +96,8 @@ export default function CalculatorPage() {
   const related = getRelatedCalculators(calculator.relatedCalculatorSlugs)
   const popular = getPopularCalculators().filter((c) => c.id !== calculator.id).slice(0, 3)
   const allRelated = [...related, ...popular.filter((p) => !related.find((r) => r.id === p.id))].slice(0, 6)
+  const dataAgeDays = (Date.now() - new Date(calculator.lastUpdated).getTime()) / 86_400_000
+  const isFinancialDataStale = dataAgeDays > 400 && calculator.categorySlug !== "health"
 
   const breadcrumbs = [
     { name: "בית", url: window.location.origin },
@@ -152,6 +154,10 @@ export default function CalculatorPage() {
         {/* Main */}
         <div className="lg:col-span-2 space-y-8">
           <div>
+            <div className="relative mb-6 aspect-[16/9] overflow-hidden rounded-2xl border border-border bg-muted shadow-lg">
+              <img src={`/assets/calculators/${calculator.slug}.jpg`} alt={`תמונת המחשה עבור ${calculator.title}`} fetchPriority="high" className="h-full w-full object-cover" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-transparent" aria-hidden="true" />
+            </div>
             <h1 className="text-3xl sm:text-4xl font-extrabold text-foreground mb-3 leading-tight">
               {calculator.title}
             </h1>
@@ -162,6 +168,13 @@ export default function CalculatorPage() {
               </Link>
             )}
           </div>
+
+          {isFinancialDataStale && (
+            <div role="alert" className="flex gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
+              <p className="text-sm"><strong>נתוני הבסיס אינם עדכניים.</strong> עודכן לאחרונה ב-{new Date(calculator.lastUpdated).toLocaleDateString("he-IL")}. אין להסתמך על התוצאה לקבלת החלטה כספית לפני אימות מול המקור הרשמי.</p>
+            </div>
+          )}
 
           <QuickAnswerBlock question={calculator.quickAnswer.question} answer={calculator.quickAnswer.answer} />
 
@@ -240,43 +253,6 @@ export default function CalculatorPage() {
         {/* Sidebar */}
         <aside className="space-y-4 no-print" aria-label="סרגל צד">
           <div className="lg:sticky lg:top-24 space-y-4">
-            {/* Rights portal promo block */}
-            <div className="bg-primary/5 border border-primary/20 rounded-xl p-5">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-8 h-8 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
-                  <Scale className="w-4 h-4 text-primary" />
-                </div>
-                <h3 className="font-bold text-foreground text-sm">פורטל הזכויות</h3>
-              </div>
-              <p className="text-sm text-muted-foreground leading-relaxed mb-3">
-                מגיע לך יותר ממה שאתה חושב? ספר לנו על המקרה שלך והמערכת תמצא את הזכויות שלך ותכתוב מכתבים רשמיים.
-              </p>
-              <Link
-                to="/rights"
-                className="block text-center py-2 px-4 bg-primary text-primary-foreground text-sm rounded-lg font-semibold hover:bg-primary/90 transition-colors"
-              >
-                מצא את הזכויות שלי
-              </Link>
-            </div>
-
-            {/* Letter explainer promo block */}
-            <div className="bg-card border border-border rounded-xl p-5">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                  <FileText className="w-4 h-4 text-primary" />
-                </div>
-                <h3 className="font-bold text-foreground text-sm">קיבלת מכתב שאינך מבין?</h3>
-              </div>
-              <p className="text-sm text-muted-foreground leading-relaxed mb-3">
-                צלם מכתב מביטוח לאומי, בנק או קופת חולים — ונסביר לך אותו בשפה פשוטה.
-              </p>
-              <Link
-                to="/letter-explainer"
-                className="block text-center py-2 px-4 border border-primary text-primary text-sm rounded-lg font-medium hover:bg-primary/5 transition-colors"
-              >
-                פענח מכתב
-              </Link>
-            </div>
 
             {/* Related / popular calculators block */}
             <div className="bg-card border border-border rounded-xl p-5">

@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
+import { authErrorResponse, requireAdmin } from "../_shared/admin-auth.ts"
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -51,6 +52,7 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    await requireAdmin(req)
     const apiKey = Deno.env.get("XAI_API_KEY")
     if (!apiKey) {
       return new Response(
@@ -151,6 +153,8 @@ Deno.serve(async (req: Request) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     )
   } catch (err) {
+    const authResponse = authErrorResponse(err, corsHeaders)
+    if (authResponse) return authResponse
     console.error("Edge function error:", err)
     return new Response(
       JSON.stringify({ error: err instanceof Error ? err.message : "Internal server error" }),

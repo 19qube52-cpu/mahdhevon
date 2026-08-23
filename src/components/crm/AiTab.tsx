@@ -8,14 +8,13 @@ import {
 import { cn } from "@/lib/utils"
 import { type QueueItem } from "@/lib/supabase"
 import { supabase } from "@/lib/supabase"
+import { adminFetch } from "@/lib/admin-api"
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string
-const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string
 
 async function callAI(action: string, payload: Record<string, unknown>): Promise<string> {
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/ai-crm-assistant`, {
+  const res = await adminFetch("ai-crm-assistant", {
     method: "POST",
-    headers: { Authorization: `Bearer ${ANON_KEY}`, "Content-Type": "application/json" },
+
     body: JSON.stringify({ action, ...payload }),
   })
   const data = await res.json()

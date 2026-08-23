@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom"
-import { Calculator, Shield, ExternalLink, Scale, FileText, Cpu, Sparkles, Phone, Mail } from "lucide-react"
+import { Calculator, Shield, ExternalLink, Cpu, Sparkles, Phone, Mail } from "lucide-react"
 import { categories } from "@/data/categories"
 import { getPopularCalculators } from "@/data/calculators"
 
@@ -19,18 +19,8 @@ export default function Footer() {
               <span className="font-bold text-xl">חשב לי</span>
             </div>
             <p className="text-sm text-primary-foreground/70 leading-relaxed">
-              כל המחשבונים והזכויות החשובים לישראלים במקום אחד. שכר, מסים, ביטוח לאומי, משכנתא ועוד.
+              כל המחשבונים החשובים לישראלים במקום אחד. שכר, מסים, ביטוח לאומי, משכנתא ועוד.
             </p>
-            <div className="space-y-2 pt-1">
-              <Link to="/rights" className="flex items-center gap-2 text-sm font-semibold text-primary-foreground hover:text-primary transition-colors">
-                <Scale className="w-4 h-4 text-primary" />
-                פורטל הזכויות של מדינת ישראל
-              </Link>
-              <Link to="/letter-explainer" className="flex items-center gap-2 text-sm font-semibold text-primary-foreground hover:text-primary transition-colors">
-                <FileText className="w-4 h-4 text-primary" />
-                מפענח מכתבים AI
-              </Link>
-            </div>
             <div className="flex items-center gap-1.5 text-xs text-primary-foreground/50 pt-1">
               <Shield className="w-3.5 h-3.5" />
               <span>כל החישובים הם הערכה בלבד</span>
@@ -106,7 +96,7 @@ export default function Footer() {
                 Powered by Joseph Elyashar Labs
               </div>
               <p className="text-sm text-primary-foreground/70 leading-relaxed max-w-md">
-                האתר פותח ומתוחזק על ידי Elyasharlabs.com — פתרונות טכנולוגיה ובינה מלאכותית מותאמים אישית.
+                האתר פותח ומתוחזק על ידי Elyasharlabs.com — פתרונות טכנולוגיים מותאמים אישית.
               </p>
             </div>
 
@@ -141,7 +131,7 @@ export default function Footer() {
                   <div className="font-semibold text-sm text-primary-foreground flex items-center gap-1">
                     elyasharlabs.com <ExternalLink className="w-3 h-3 opacity-60" />
                   </div>
-                  <div className="text-xs text-primary-foreground/60 mt-0.5">פתרונות בינה מלאכותית</div>
+                  <div className="text-xs text-primary-foreground/60 mt-0.5">פתרונות תוכנה מתקדמים</div>
                 </div>
               </a>
             </div>

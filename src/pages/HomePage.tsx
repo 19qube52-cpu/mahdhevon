@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom"
-import { Search, Calculator, ArrowLeft, TrendingUp, Banknote, Home, Shield, FileText, Star, Sparkles } from "lucide-react"
+import { Search, Calculator, ArrowLeft, TrendingUp, Banknote, Home, Shield, Star, Sparkles } from "lucide-react"
 import { useState, useMemo } from "react"
 import { useTodayFeatured } from "@/hooks/use-today-featured"
 import { usePageMeta } from "@/lib/seo"
@@ -133,28 +133,6 @@ export default function HomePage() {
           </Link>
         )}
 
-        {/* AI Letter Explainer Banner */}
-        <Link
-          to="/letter-explainer"
-          className="flex flex-col sm:flex-row items-center gap-4 p-5 sm:p-6 rounded-2xl border-2 border-primary/30 bg-gradient-to-l from-primary/5 to-primary/10 hover:border-primary/60 hover:from-primary/10 hover:to-primary/15 transition-all group"
-        >
-          <div className="w-14 h-14 rounded-2xl bg-primary/15 flex items-center justify-center shrink-0 group-hover:bg-primary/25 transition-colors">
-            <FileText className="w-7 h-7 text-primary" />
-          </div>
-          <div className="text-center sm:text-right flex-1">
-            <div className="flex items-center gap-1.5 justify-center sm:justify-start mb-1">
-              <span className="text-xs bg-primary text-primary-foreground px-2 py-0.5 rounded-full font-bold">חדש!</span>
-              <span className="text-xs text-muted-foreground font-medium">מופעל על ידי Grok AI</span>
-            </div>
-            <p className="text-lg font-extrabold text-foreground">מפענח מכתבים חכם לאנשים מבוגרים</p>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              צלם מכתב מביטוח לאומי, קופת חולים או בנק — ה-AI יסביר הכל בשפה פשוטה ויקרא את ההסבר בקול
-            </p>
-          </div>
-          <div className="text-primary font-bold text-sm whitespace-nowrap flex items-center gap-1 group-hover:gap-2 transition-all">
-            נסה עכשיו ←
-          </div>
-        </Link>
 
         {/* Fun calculators promo */}
         <Link

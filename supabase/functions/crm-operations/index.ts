@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { createClient } from "npm:@supabase/supabase-js@2"
+import { authErrorResponse, requireAdmin } from "../_shared/admin-auth.ts"
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -26,6 +27,7 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    await requireAdmin(req)
     const db = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
@@ -110,6 +112,8 @@ Deno.serve(async (req: Request) => {
 
     return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } })
   } catch (err) {
+    const authResponse = authErrorResponse(err, corsHeaders)
+    if (authResponse) return authResponse
     console.error("crm-operations error:", err)
     return new Response(
       JSON.stringify({ error: err instanceof Error ? err.message : String(err) }),

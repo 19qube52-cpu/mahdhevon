@@ -152,6 +152,7 @@ interface CreateItemDialogProps {
     position: number
     notes: string | null
     scheduled_date: string | null
+    generate_image: boolean
   }) => Promise<void>
   onClose: () => void
 }
@@ -163,6 +164,7 @@ export function CreateItemDialog({ nextPosition, onSave, onClose }: CreateItemDi
   const [category, setCategory] = useState("")
   const [notes, setNotes] = useState("")
   const [scheduledDate, setScheduledDate] = useState("")
+  const [generateImage, setGenerateImage] = useState(true)
   const [saving, setSaving] = useState(false)
 
   const handleSave = async () => {
@@ -176,6 +178,7 @@ export function CreateItemDialog({ nextPosition, onSave, onClose }: CreateItemDi
       position: nextPosition,
       notes: notes.trim() || null,
       scheduled_date: scheduledDate || null,
+      generate_image: generateImage,
     })
     setSaving(false)
     onClose()
@@ -215,6 +218,10 @@ export function CreateItemDialog({ nextPosition, onSave, onClose }: CreateItemDi
               <input type="date" value={scheduledDate} onChange={e => setScheduledDate(e.target.value)} className={inputCls} dir="ltr" />
             </Field>
           </div>
+          <label className="flex items-center gap-2 rounded-lg border border-violet-300 bg-violet-50 p-3 text-sm font-semibold text-violet-900 dark:bg-violet-950/20 dark:text-violet-100">
+            <input type="checkbox" checked={generateImage} onChange={e => setGenerateImage(e.target.checked)} />
+            צור גם תמונת xAI ייחודית כטיוטה
+          </label>
           <Field label="הערות">
             <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} className={cn(inputCls, "resize-none")} placeholder="הערות פנימיות..." />
           </Field>
