@@ -10,6 +10,8 @@ const corsHeaders = {
 
 type Action =
   | { type: "move"; id: string; dir: "up" | "down"; swapId: string; posA: number; posB: number }
+  | { type: "reorder"; items: Array<{ id: string; position: number }> }
+  | { type: "publish"; id: string }
   | { type: "skip"; id: string }
   | { type: "restore"; id: string; position: number }
   | { type: "delete"; id: string }
@@ -36,6 +38,35 @@ Deno.serve(async (req: Request) => {
     const action: Action = await req.json()
 
     switch (action.type) {
+      case "publish": {
+        const { data: item, error: fetchError } = await db.from("calculator_queue").select("*").eq("id", action.id).eq("status", "pending").single()
+        if (fetchError || !item) throw fetchError ?? new Error("Calculator is not pending")
+        const today = new Date().toISOString().split("T")[0]
+        const { error: featuredError } = await db.from("daily_featured").upsert({
+          date: today,
+          calculator_slug: item.calculator_slug,
+          calculator_id: item.calculator_id,
+          calculator_title: item.calculator_title,
+          published_at: new Date().toISOString(),
+        }, { onConflict: "date" })
+        if (featuredError) throw featuredError
+        const { error: updateError } = await db.from("calculator_queue").update({ status: "published", published_at: new Date().toISOString() }).eq("id", item.id)
+        if (updateError) throw updateError
+        break
+      }
+
+      case "reorder": {
+        if (!Array.isArray(action.items) || action.items.length > 200) throw new Error("Invalid reorder payload")
+        const ids = new Set(action.items.map((item) => item.id))
+        if (ids.size !== action.items.length || action.items.some((item) => !item.id || !Number.isInteger(item.position) || item.position < 1)) throw new Error("Invalid reorder positions")
+        const results = await Promise.all(action.items.map((item) =>
+          db.from("calculator_queue").update({ position: item.position }).eq("id", item.id).eq("status", "pending")
+        ))
+        const failure = results.find((result) => result.error)
+        if (failure?.error) throw failure.error
+        break
+      }
+
       case "move": {
         const [r1, r2] = await Promise.all([
           db.from("calculator_queue").update({ position: action.posB }).eq("id", action.id),

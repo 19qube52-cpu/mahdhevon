@@ -8,7 +8,7 @@ import {
   Play, ArrowUp, ArrowDown, Plus, Trash2, SkipForward,
   Calendar, CheckCircle2, Clock, AlertCircle, RefreshCw,
   ExternalLink, Loader2, Calculator, Star, Pencil,
-  ChevronRight, Sparkles, TrendingUp, Activity, ImagePlus
+  ChevronRight, Sparkles, TrendingUp, Activity, ImagePlus, GripVertical
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { supabase, type QueueItem, type DailyFeatured } from "@/lib/supabase"
@@ -29,6 +29,13 @@ async function crmOp(body: Record<string, unknown>): Promise<void> {
 
 type Tab = "dashboard" | "queue" | "history" | "ai" | "images" | "providers" | "monitor" | "settings"
 
+type ActivityLog = {
+  id: string
+  timestamp: string
+  message: string
+  status: "success" | "error" | "info"
+}
+
 const CATEGORY_LABELS: Record<string, string> = {
   "salary-tax": "שכר ומסים", "mortgage-loans": "משכנתא", "health": "בריאות",
   "pension": "פנסיה", "savings": "חיסכון", "bituach-leumi": "ביטוח לאומי",
@@ -48,16 +55,24 @@ export default function CrmPage() {
   const [loading, setLoading] = useState(true)
   const [publishing, setPublishing] = useState(false)
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null)
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([])
 
   // CRUD dialog state
   const [editingItem, setEditingItem] = useState<QueueItem | null>(null)
   const [deletingItem, setDeletingItem] = useState<QueueItem | null>(null)
   const [showCreate, setShowCreate] = useState(false)
 
-  const showToast = (msg: string, type: "success" | "error" = "success") => {
+  const addLog = useCallback((message: string, status: ActivityLog["status"] = "info") => {
+    setActivityLogs((current) => [{
+      id: crypto.randomUUID(), timestamp: new Date().toISOString(), message, status,
+    }, ...current].slice(0, 50))
+  }, [])
+
+  const showToast = useCallback((msg: string, type: "success" | "error" = "success") => {
     setToast({ msg, type })
+    addLog(msg, type)
     setTimeout(() => setToast(null), 3500)
-  }
+  }, [addLog])
 
   const fetchData = useCallback(async () => {
     if (!user || !isAdmin) return
@@ -138,6 +153,39 @@ export default function CrmPage() {
     try { await crmOp({ type: "move", id: a.id, dir, swapId: b.id, posA: a.position, posB: b.position }) }
     catch (e) { showToast((e as Error).message, "error"); return }
     await fetchData()
+  }
+
+  const playItem = async (item: QueueItem) => {
+    try {
+      await crmOp({ type: "publish", id: item.id })
+      showToast(`המחשבון ${item.calculator_title} פורסם בהצלחה`)
+      await fetchData()
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "פרסום המחשבון נכשל", "error")
+    }
+  }
+
+  const reorderItems = async (draggedId: string, targetId: string) => {
+    if (draggedId === targetId) return
+    const ordered = queue.filter((item) => item.status === "pending").sort((a, b) => a.position - b.position)
+    const from = ordered.findIndex((item) => item.id === draggedId)
+    const to = ordered.findIndex((item) => item.id === targetId)
+    if (from < 0 || to < 0) return
+    const next = [...ordered]
+    const [dragged] = next.splice(from, 1)
+    next.splice(to, 0, dragged)
+    const positions = next.map((item, index) => ({ id: item.id, position: index + 1 }))
+    const previousQueue = queue
+    const positionMap = new Map(positions.map((item) => [item.id, item.position]))
+    setQueue((current) => current.map((item) => positionMap.has(item.id) ? { ...item, position: positionMap.get(item.id)! } : item))
+    try {
+      await crmOp({ type: "reorder", items: positions })
+      showToast(`הסדר נשמר: ${dragged.calculator_title} עבר למיקום ${to + 1}`)
+      await fetchData()
+    } catch (error) {
+      setQueue(previousQueue)
+      showToast(error instanceof Error ? error.message : "שמירת הסדר נכשלה", "error")
+    }
   }
 
   const skipItem = async (id: string) => {
@@ -320,6 +368,10 @@ export default function CrmPage() {
                   onDelete={setDeletingItem}
                   onAddExisting={addFromExisting}
                   onUpdateNotes={updateNotes}
+                  onPlay={playItem}
+                  onReorder={reorderItems}
+                  logs={activityLogs}
+                  onClearLogs={() => setActivityLogs([])}
                 />
               )}
               {tab === "history" && <HistoryTab history={history} />}
@@ -476,7 +528,7 @@ function DashboardTab({
 
 // ─── Queue Tab ────────────────────────────────────────────────────
 function QueueTab({
-  queue, onMoveUp, onMoveDown, onSkip, onRestore, onEdit, onDelete, onAddExisting, onUpdateNotes
+  queue, onMoveUp, onMoveDown, onSkip, onRestore, onEdit, onDelete, onAddExisting, onUpdateNotes, onPlay, onReorder, logs, onClearLogs
 }: {
   queue: QueueItem[]
   onMoveUp: (id: string) => void
@@ -487,11 +539,17 @@ function QueueTab({
   onDelete: (item: QueueItem) => void
   onAddExisting: (calcId: string) => void
   onUpdateNotes: (id: string, notes: string) => void
+  onPlay: (item: QueueItem) => void
+  onReorder: (draggedId: string, targetId: string) => void
+  logs: ActivityLog[]
+  onClearLogs: () => void
 }) {
   const [showAdd, setShowAdd] = useState(false)
   const [search, setSearch] = useState("")
   const [editingNotes, setEditingNotes] = useState<string | null>(null)
   const [notesVal, setNotesVal] = useState("")
+  const [draggedId, setDraggedId] = useState<string | null>(null)
+  const [dragOverId, setDragOverId] = useState<string | null>(null)
 
   const pending = queue.filter(q => q.status === "pending").sort((a, b) => a.position - b.position)
   const published = queue.filter(q => q.status === "published").sort((a, b) => new Date(b.published_at!).getTime() - new Date(a.published_at!).getTime())
@@ -537,7 +595,21 @@ function QueueTab({
         ) : (
           <div className="space-y-2">
             {pending.map((item, idx) => (
-              <div key={item.id} className="flex items-center gap-3 p-3 rounded-xl border border-border bg-background hover:border-primary/30 transition-colors group">
+              <div
+                key={item.id}
+                draggable
+                onDragStart={(event) => { setDraggedId(item.id); event.dataTransfer.effectAllowed = "move" }}
+                onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "move"; setDragOverId(item.id) }}
+                onDragLeave={() => setDragOverId((current) => current === item.id ? null : current)}
+                onDrop={(event) => { event.preventDefault(); if (draggedId) onReorder(draggedId, item.id); setDraggedId(null); setDragOverId(null) }}
+                onDragEnd={() => { setDraggedId(null); setDragOverId(null) }}
+                className={cn(
+                  "flex items-center gap-3 p-3 rounded-xl border bg-background transition-all group",
+                  draggedId === item.id && "opacity-50",
+                  dragOverId === item.id ? "border-primary ring-2 ring-primary/20" : "border-border hover:border-primary/30",
+                )}
+              >
+                <GripVertical className="w-4 h-4 text-muted-foreground cursor-grab active:cursor-grabbing shrink-0" aria-label="גרור לשינוי מיקום" />
                 <span className="w-7 h-7 rounded-lg bg-primary/10 text-primary text-xs font-extrabold flex items-center justify-center shrink-0">{idx + 1}</span>
                 <div className="flex-1 min-w-0">
                   <div className="font-semibold text-sm text-foreground truncate">{item.calculator_title}</div>
@@ -549,6 +621,7 @@ function QueueTab({
                 </div>
                 {idx === 0 && <span className="text-xs bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 px-2 py-0.5 rounded-full font-bold shrink-0">מחר</span>}
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button type="button" onClick={() => onPlay(item)} className="p-1.5 rounded hover:bg-success/10 transition-colors" title="פרסם מחשבון עכשיו"><Play className="w-3.5 h-3.5 text-success" /></button>
                   <button onClick={() => onMoveUp(item.id)} disabled={idx === 0} className="p-1.5 rounded hover:bg-muted disabled:opacity-30 transition-colors" title="למעלה"><ArrowUp className="w-3.5 h-3.5 text-muted-foreground" /></button>
                   <button onClick={() => onMoveDown(item.id)} disabled={idx === pending.length - 1} className="p-1.5 rounded hover:bg-muted disabled:opacity-30 transition-colors" title="למטה"><ArrowDown className="w-3.5 h-3.5 text-muted-foreground" /></button>
                   <button onClick={() => { setEditingNotes(item.id); setNotesVal(item.notes ?? "") }} className="p-1.5 rounded hover:bg-muted transition-colors text-xs text-muted-foreground px-2">הערה</button>
@@ -569,6 +642,24 @@ function QueueTab({
             <button onClick={() => { onUpdateNotes(editingNotes, notesVal); setEditingNotes(null) }} className="px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-sm font-bold">שמור</button>
           </div>
         )}
+      </div>
+
+      <div className="bg-card rounded-2xl border border-border overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+          <h3 className="font-bold text-sm flex items-center gap-2"><Activity className="w-4 h-4 text-primary" />יומן פעולות</h3>
+          {logs.length > 0 && <button type="button" onClick={onClearLogs} className="text-xs text-muted-foreground hover:text-foreground">נקה</button>}
+        </div>
+        <div className="max-h-56 overflow-y-auto divide-y divide-border">
+          {logs.length === 0 ? (
+            <div className="p-6 text-center text-sm text-muted-foreground">הפעולות והודעות ההצלחה או הכישלון יופיעו כאן</div>
+          ) : logs.map((log) => (
+            <div key={log.id} className="flex items-center gap-3 px-5 py-3 text-sm">
+              {log.status === "success" ? <CheckCircle2 className="w-4 h-4 text-success shrink-0" /> : log.status === "error" ? <AlertCircle className="w-4 h-4 text-destructive shrink-0" /> : <Activity className="w-4 h-4 text-primary shrink-0" />}
+              <span className="flex-1">{log.message}</span>
+              <time className="text-xs text-muted-foreground" dateTime={log.timestamp}>{new Date(log.timestamp).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</time>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Skipped */}
