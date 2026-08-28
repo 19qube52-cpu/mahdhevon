@@ -21,6 +21,7 @@ import AmortizationTable from "@/components/calculator/AmortizationTable"
 import { Calculator, Info, Table, AlertTriangle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useRecentlyViewed } from "@/hooks/use-recently-viewed"
+import BlankCalculatorPage from "@/components/calculator/BlankCalculatorPage"
 
 export default function CalculatorPage() {
   const { slug } = useParams<{ slug: string }>()
@@ -79,18 +80,7 @@ export default function CalculatorPage() {
     })
   }
 
-  if (!calculator) {
-    return (
-      <div className="max-w-2xl mx-auto px-4 py-20 text-center">
-        <Calculator className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-        <h1 className="text-2xl font-bold mb-2">מחשבון לא נמצא</h1>
-        <p className="text-muted-foreground mb-6">המחשבון שחיפשת אינו קיים.</p>
-        <Link to="/" className="px-6 py-2.5 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors">
-          חזרה לדף הבית
-        </Link>
-      </div>
-    )
-  }
+  if (!calculator) return <BlankCalculatorPage slug={slug ?? ""} />
 
   const category = getCategoryBySlug(calculator.categorySlug)
   const related = getRelatedCalculators(calculator.relatedCalculatorSlugs)
