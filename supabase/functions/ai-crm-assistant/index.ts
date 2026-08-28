@@ -165,6 +165,40 @@ const SYS_PLAN = `אתה יועץ אסטרטגי לניהול תוכן דיגי�
 const SYS_DOMAIN = `אתה יועץ פיננסי ישראלי מנוסה עם ידע עמוק בנדל"ן, רכב, ביטוח, פנסיה והשקעות.
 ענה בעברית עממית, עם מספרים ספציפיים לשוק הישראלי, וציין תמיד שההמלצות כלליות בלבד ולא מהוות ייעוץ פיננסי רשמי.`
 
+const CALCULATOR_SYSTEM = `You design complete Hebrew RTL calculators. Return ONLY valid JSON, without markdown.
+The JSON must contain: slug (lowercase English kebab-case), title, category_slug, description, inputs, formula, result_config, content.
+inputs: 1-5 items with id (English camelCase), label (Hebrew), type number or range, sensible min/max/step/defaultValue, optional unit and helpText.
+formula is a safe expression tree. Allowed leaves: {"op":"input","id":"..."}, {"op":"const","value":number}. Allowed multi ops: add,sub,mul,div,min,max,pow with args array. Allowed unary ops: round,floor,ceil,abs with arg.
+result_config: label in Hebrew, optional unit/prefix/suffix, decimals 0-2.
+content: explanation, example, disclaimer and faqs array of 3 Hebrew question/answer objects.
+Build a genuinely useful working calculator from the title. For lifetime-time questions, ask current age plus relevant average frequency/duration and calculate the lifetime total. Do not use current laws or rates unless the title requires them.`
+
+function parseJson(text: string) {
+  const cleaned = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "")
+  return JSON.parse(cleaned)
+}
+
+function validateDefinition(value: any) {
+  if (!value || typeof value !== "object") throw new Error("AI returned an invalid calculator")
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value.slug ?? "")) throw new Error("AI returned an invalid slug")
+  if (typeof value.title !== "string" || typeof value.description !== "string") throw new Error("AI omitted calculator content")
+  if (!Array.isArray(value.inputs) || value.inputs.length < 1 || value.inputs.length > 5) throw new Error("AI returned invalid inputs")
+  const inputIds = new Set(value.inputs.map((input: any) => input.id))
+  if (inputIds.size !== value.inputs.length || value.inputs.some((input: any) => !/^[A-Za-z][A-Za-z0-9]*$/.test(input.id) || !["number", "range"].includes(input.type))) throw new Error("AI returned invalid input fields")
+  let nodes = 0
+  const visit = (node: any, depth = 0) => {
+    nodes++
+    if (!node || depth > 20 || nodes > 100) throw new Error("AI formula is too complex")
+    if (node.op === "const" && Number.isFinite(node.value)) return
+    if (node.op === "input" && inputIds.has(node.id)) return
+    if (["round", "floor", "ceil", "abs"].includes(node.op)) return visit(node.arg, depth + 1)
+    if (["add", "sub", "mul", "div", "min", "max", "pow"].includes(node.op) && Array.isArray(node.args) && node.args.length >= 1 && node.args.length <= 10) return node.args.forEach((child: any) => visit(child, depth + 1))
+    throw new Error("AI returned an unsafe formula")
+  }
+  visit(value.formula)
+  return value
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 200, headers: corsHeaders })
 
@@ -179,6 +213,7 @@ Deno.serve(async (req: Request) => {
     const { action, calculator_id, calculator_title, queue, context } = body
 
     let resultText = ""
+    let createdCalculator: any = null
     let usedProvider = ""
     let usedModel = ""
 
@@ -190,6 +225,32 @@ Deno.serve(async (req: Request) => {
     }
 
     switch (action) {
+      case "create_calculator": {
+        const title = String(calculator_title ?? "").trim().slice(0, 160)
+        if (title.length < 3) throw new Error("יש להזין כותרת למחשבון")
+        const raw = await ai(CALCULATOR_SYSTEM, `Create a complete calculator for this exact idea: ${title}`, 2600)
+        const definition = validateDefinition(parseJson(raw))
+        definition.title = title
+        definition.category_slug = String(definition.category_slug || "general-tools").slice(0, 80)
+        const calculatorId = definition.slug
+        const { data: saved, error: saveError } = await db.from("calculator_definitions").upsert({
+          calculator_id: calculatorId, slug: definition.slug, title: definition.title,
+          category_slug: definition.category_slug, description: definition.description,
+          inputs: definition.inputs, formula: definition.formula,
+          result_config: definition.result_config ?? {}, content: definition.content ?? {}, updated_at: new Date().toISOString(),
+        }, { onConflict: "slug" }).select().single()
+        if (saveError) throw saveError
+        const { data: positionRows } = await db.from("calculator_queue").select("position").eq("status", "pending").order("position", { ascending: false }).limit(1)
+        const { error: queueError } = await db.from("calculator_queue").insert({
+          calculator_id: calculatorId, calculator_slug: definition.slug, calculator_title: definition.title,
+          calculator_category: definition.category_slug, position: (positionRows?.[0]?.position ?? 0) + 1,
+          notes: "נוצר אוטומטית על ידי AI — כולל שדות, נוסחה ותוכן",
+        })
+        if (queueError) throw queueError
+        createdCalculator = saved
+        resultText = "המחשבון המלא נוצר בהצלחה"
+        break
+      }
       // ── 1. סיכום ──────────────────────────────────────────────
       case "summary":
         resultText = await ai(SYS_HE, `כתוב משפט סיכום אחד (עד 20 מילים) שמסביר מה עושה המחשבון: "${calculator_title}". רק המשפט, ללא נקודה בסוף.`, 80)
@@ -311,7 +372,7 @@ Deno.serve(async (req: Request) => {
     }
 
     return new Response(
-      JSON.stringify({ ok: true, result: resultText, provider: usedProvider, model: usedModel }),
+      JSON.stringify({ ok: true, result: resultText, calculator: createdCalculator, provider: usedProvider, model: usedModel }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     )
   } catch (err) {

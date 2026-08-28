@@ -1,9 +1,10 @@
 import { useState } from "react"
+import { Link } from "react-router-dom"
 import {
   Sparkles, FileText, Newspaper, Shuffle, Tags, Share2,
   Users, CalendarDays, Clock, HelpCircle, Copy, Check,
   Loader2, ChevronDown, ChevronUp, Zap, Home, Car, ShieldCheck,
-  PiggyBank, TrendingUp
+  PiggyBank, TrendingUp, Bot, Send, ExternalLink
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { type QueueItem } from "@/lib/supabase"
@@ -144,6 +145,11 @@ export function AiTab({ queue }: AiTabProps) {
   const [platform, setPlatform] = useState("LinkedIn")
   const [activeSection, setActiveSection] = useState<"content" | "domain">("content")
   const [domainCtx, setDomainCtx] = useState<Record<string, Record<string, string>>>({})
+  const [agentPrompt, setAgentPrompt] = useState("")
+  const [agentBusy, setAgentBusy] = useState(false)
+  const [agentMessages, setAgentMessages] = useState<Array<{ role: "user" | "agent"; text: string; url?: string }>>([
+    { role: "agent", text: "שלום, אני סוכן ניהול המחשבונים. כתוב לי רעיון או כותרת ואכין מחשבון מלא עם שדות, נוסחה, תוכן ותמונת טיוטה." },
+  ])
   const setCtx = (featureId: string, key: string, val: string) =>
     setDomainCtx(prev => ({ ...prev, [featureId]: { ...(prev[featureId] ?? {}), [key]: val } }))
 
@@ -171,8 +177,35 @@ export function AiTab({ queue }: AiTabProps) {
     setLoading(p => ({ ...p, [feature.id]: false }))
   }
 
+  const runAgent = async () => {
+    const prompt = agentPrompt.trim()
+    if (!prompt || agentBusy) return
+    setAgentMessages(current => [...current, { role: "user", text: prompt }])
+    setAgentPrompt("")
+    setAgentBusy(true)
+    try {
+      const response = await adminFetch("ai-crm-assistant", { method: "POST", body: JSON.stringify({ action: "create_calculator", calculator_title: prompt }) })
+      const data = await response.json()
+      if (!response.ok || !data.ok || !data.calculator) throw new Error(data.error ?? "יצירת המחשבון נכשלה")
+      let imageMessage = ""
+      try {
+        const imageResponse = await adminFetch("calculator-image", { method: "POST", body: JSON.stringify({ action: "generate", calculator_id: data.calculator.calculator_id, calculator_slug: data.calculator.slug, calculator_title: data.calculator.title, description: data.calculator.description }) })
+        const imageData = await imageResponse.json()
+        imageMessage = imageResponse.ok && imageData.ok ? " יצרתי גם תמונה ייחודית כטיוטה לאישור בלשונית תמונות." : ` המחשבון נוצר, אך התמונה נכשלה: ${imageData.error ?? "שגיאה"}.`
+      } catch { imageMessage = " המחשבון נוצר, אך יצירת התמונה נכשלה." }
+      setAgentMessages(current => [...current, { role: "agent", text: `הטיוטה המלאה מוכנה.${imageMessage} אפשר לפתוח ולבדוק את החישוב לפני פרסום.`, url: `/calculators/${data.calculator.slug}` }])
+    } catch (error) {
+      setAgentMessages(current => [...current, { role: "agent", text: `לא הצלחתי להשלים את הפעולה: ${error instanceof Error ? error.message : "שגיאה לא ידועה"}` }])
+    } finally { setAgentBusy(false) }
+  }
+
   return (
     <div className="space-y-6" dir="rtl">
+      <section className="overflow-hidden rounded-2xl border border-violet-300 bg-card shadow-sm">
+        <header className="flex items-center gap-3 bg-gradient-to-l from-violet-600 to-indigo-600 p-5 text-white"><Bot className="h-7 w-7" /><div><h2 className="text-lg font-extrabold">סוכן מנהל האתר</h2><p className="text-xs text-white/80">יצירת מחשבון מלא מכותרת אחת · טיוטה · תמונה · בדיקה · פרסום</p></div></header>
+        <div className="max-h-80 space-y-3 overflow-y-auto p-5">{agentMessages.map((message, index) => <div key={index} className={cn("max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-6", message.role === "user" ? "mr-auto bg-primary text-primary-foreground" : "ml-auto bg-muted text-foreground")}><p>{message.text}</p>{message.url ? <Link to={message.url} target="_blank" className="mt-2 inline-flex items-center gap-1 font-bold text-primary underline"><ExternalLink className="h-3.5 w-3.5" />פתח טיוטה</Link> : null}</div>)}{agentBusy ? <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />הסוכן בונה שדות, נוסחה, תוכן ותמונה…</div> : null}</div>
+        <div className="flex gap-2 border-t p-4"><input value={agentPrompt} onChange={event => setAgentPrompt(event.target.value)} onKeyDown={event => { if (event.key === "Enter") runAgent() }} placeholder="לדוגמה: צור מחשבון כמה שניות חיית עד היום" className="flex-1 rounded-xl border bg-background px-4 py-3 outline-none focus:ring-2 focus:ring-primary" /><button onClick={runAgent} disabled={agentBusy || !agentPrompt.trim()} className="flex items-center gap-2 rounded-xl bg-primary px-5 font-bold text-primary-foreground disabled:opacity-50"><Send className="h-4 w-4" />שלח</button></div>
+      </section>
       {/* Header */}
       <div className="bg-gradient-to-l from-violet-50/50 to-indigo-50/50 dark:from-violet-950/20 dark:to-indigo-950/20 rounded-2xl border border-violet-200/50 dark:border-violet-800/30 p-5">
         <div className="flex items-start gap-3 mb-4">
