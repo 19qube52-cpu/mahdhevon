@@ -42,10 +42,13 @@ Deno.serve(async (req: Request) => {
       const description = String(body.description ?? "").trim().slice(0, 1000)
       if (!calculatorId || !slugPattern.test(slug) || !title) return json({ ok: false, error: "Invalid calculator fields" }, 400)
 
-      const since = new Date(Date.now() - 60 * 60 * 1000).toISOString()
-      const { count, error: countError } = await db.from("calculator_media_assets").select("id", { count: "exact", head: true }).gte("created_at", since)
+      const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+      const [{ count, error: countError }, { data: budget }] = await Promise.all([
+        db.from("calculator_media_assets").select("id", { count: "exact", head: true }).gte("created_at", since),
+        db.from("ai_budget_settings").select("daily_image_calls").eq("id", true).maybeSingle(),
+      ])
       if (countError) throw countError
-      if ((count ?? 0) >= 20) return json({ ok: false, error: "Hourly image budget reached (20)" }, 429)
+      if ((count ?? 0) >= (budget?.daily_image_calls ?? 20)) return json({ ok: false, error: "מכסת התמונות היומית נוצלה" }, 429)
 
       const apiKey = Deno.env.get("XAI_API_KEY")
       if (!apiKey) return json({ ok: false, error: "XAI_API_KEY is not configured" }, 503)
@@ -86,6 +89,7 @@ Deno.serve(async (req: Request) => {
         await db.storage.from("calculator-image-drafts").remove([storagePath])
         throw insertError
       }
+      await db.from("ai_usage_ledger").insert({ provider: "xai", model, operation: "image", calculator_slug: slug, cost_in_usd_ticks: generated.usage?.cost_in_usd_ticks ?? null, success: true })
       const { data: signed } = await db.storage.from("calculator-image-drafts").createSignedUrl(storagePath, 3600)
       return json({ ok: true, asset: { ...asset, preview_url: signed?.signedUrl ?? null } })
     }

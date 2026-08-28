@@ -41,6 +41,12 @@ Deno.serve(async (req: Request) => {
       case "publish": {
         const { data: item, error: fetchError } = await db.from("calculator_queue").select("*").eq("id", action.id).eq("status", "pending").single()
         if (fetchError || !item) throw fetchError ?? new Error("Calculator is not pending")
+        const { data: definition } = await db.from("calculator_definitions").select("slug,status,tests").eq("slug", item.calculator_slug).maybeSingle()
+        if (definition) {
+          if (!Array.isArray(definition.tests) || definition.tests.length < 2) throw new Error("המחשבון חסר בדיקות נוסחה")
+          const { count: imageCount } = await db.from("calculator_media_assets").select("id", { count: "exact", head: true }).eq("calculator_slug", item.calculator_slug).eq("approval_status", "approved")
+          if (!imageCount) throw new Error("יש לאשר תמונה לפני פרסום המחשבון")
+        }
         const today = new Date().toISOString().split("T")[0]
         const { error: featuredError } = await db.from("daily_featured").upsert({
           date: today,
@@ -50,8 +56,11 @@ Deno.serve(async (req: Request) => {
           published_at: new Date().toISOString(),
         }, { onConflict: "date" })
         if (featuredError) throw featuredError
-        const { error: updateError } = await db.from("calculator_queue").update({ status: "published", published_at: new Date().toISOString() }).eq("id", item.id)
+        const { error: updateError } = definition
+          ? await db.rpc("publish_calculator", { p_slug: item.calculator_slug })
+          : await db.from("calculator_queue").update({ status: "published", published_at: new Date().toISOString() }).eq("id", item.id)
         if (updateError) throw updateError
+        await db.from("admin_activity_logs").insert({ action: "publish", entity_type: "calculator", entity_id: item.calculator_slug, status: "success", message: `פורסם: ${item.calculator_title}` })
         break
       }
 

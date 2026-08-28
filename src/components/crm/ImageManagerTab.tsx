@@ -10,6 +10,7 @@ interface MediaAsset {
   model: string
   prompt: string
   approval_status: "draft" | "approved" | "rejected"
+  generation_status: "queued" | "submitted" | "processing" | "ready" | "failed" | "expired"
   preview_url?: string | null
   public_url?: string | null
   cost_in_usd_ticks?: number | null
@@ -68,6 +69,14 @@ export function ImageManagerTab({ queue, onToast }: { queue: QueueItem[]; onToas
     } catch (error) { onToast(error instanceof Error ? error.message : "הפעולה נכשלה", "error") }
   }
 
+  const regenerate = async (asset: MediaAsset) => {
+    if (!window.confirm(`ליצור תמונה חדשה עבור ${asset.calculator_title}? הפעולה צורכת מכסת xAI.`)) return
+    setGenerating(true)
+    try { await imageOp({ action: "generate", calculator_id: queue.find(item => item.calculator_slug === asset.calculator_slug)?.calculator_id ?? asset.calculator_slug, calculator_slug: asset.calculator_slug, calculator_title: asset.calculator_title, description: asset.prompt, prompt: customPrompt }); onToast("נוצרה גרסת תמונה חדשה כטיוטה"); await load() }
+    catch (error) { onToast(error instanceof Error ? error.message : "יצירת התמונה נכשלה", "error") }
+    finally { setGenerating(false) }
+  }
+
   return (
     <div className="space-y-6" dir="rtl">
       <section className="rounded-2xl border border-border bg-card p-5 space-y-4">
@@ -97,11 +106,12 @@ export function ImageManagerTab({ queue, onToast }: { queue: QueueItem[]; onToas
               {(asset.preview_url || asset.public_url) && <img src={asset.preview_url || asset.public_url || ""} alt={`טיוטת תמונה עבור ${asset.calculator_title}`} className="aspect-video w-full object-cover" />}
               <div className="space-y-2 p-3">
                 <div className="font-semibold">{asset.calculator_title}</div>
-                <div className="text-xs text-muted-foreground">{asset.model} · {asset.approval_status}</div>
+                <div className="text-xs text-muted-foreground">{asset.model} · {asset.generation_status} · {asset.approval_status}{asset.cost_in_usd_ticks ? ` · ${asset.cost_in_usd_ticks} ticks` : ""}</div>
                 {asset.approval_status === "draft" && <div className="flex gap-2">
                   <button type="button" onClick={() => review(asset.id, "approve")} className="inline-flex items-center gap-1 rounded-md bg-success px-3 py-1.5 text-xs font-bold text-white"><Check className="h-3.5 w-3.5" />אשר</button>
                   <button type="button" onClick={() => review(asset.id, "reject")} className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs"><X className="h-3.5 w-3.5" />דחה</button>
                 </div>}
+                <button type="button" onClick={() => regenerate(asset)} disabled={generating} className="text-xs font-bold text-primary underline">צור גרסה נוספת</button>
               </div>
             </article>
           ))}

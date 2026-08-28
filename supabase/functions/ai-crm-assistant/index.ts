@@ -105,6 +105,12 @@ async function callAI(
   user: string,
   maxTokens = 800
 ): Promise<{ text: string; provider: string; model: string }> {
+  const since = new Date(Date.now() - 86400000).toISOString()
+  const [{ data: budget }, { count }] = await Promise.all([
+    db.from("ai_budget_settings").select("daily_text_calls").eq("id", true).maybeSingle(),
+    db.from("ai_usage_ledger").select("id", { count: "exact", head: true }).eq("operation", "text").gte("created_at", since),
+  ])
+  if ((count ?? 0) >= (budget?.daily_text_calls ?? 100)) throw new Error("מכסת יצירת הטקסט היומית נוצלה")
   const { data } = await db
     .from("ai_providers")
     .select("*")
@@ -142,6 +148,7 @@ async function callAI(
         last_used_at: new Date().toISOString(),
         total_calls: (provider.total_calls ?? 0) + 1,
       }).eq("id", provider.id)
+      await db.from("ai_usage_ledger").insert({ provider: provider.provider, model: provider.default_model, operation: "text", success: true })
       return { text, provider: provider.provider, model: provider.default_model }
     } catch (err) {
       lastError = err as Error
@@ -150,6 +157,7 @@ async function callAI(
         last_error: lastError.message,
       }).eq("id", provider.id)
       console.warn(`Provider ${provider.provider} failed:`, lastError.message)
+      await db.from("ai_usage_ledger").insert({ provider: provider.provider, model: provider.default_model, operation: "text", success: false })
     }
   }
   throw lastError ?? new Error("All AI providers failed")
@@ -166,11 +174,12 @@ const SYS_DOMAIN = `אתה יועץ פיננסי ישראלי מנוסה עם י
 ענה בעברית עממית, עם מספרים ספציפיים לשוק הישראלי, וציין תמיד שההמלצות כלליות בלבד ולא מהוות ייעוץ פיננסי רשמי.`
 
 const CALCULATOR_SYSTEM = `You design complete Hebrew RTL calculators. Return ONLY valid JSON, without markdown.
-The JSON must contain: slug (lowercase English kebab-case), title, category_slug, description, inputs, formula, result_config, content.
+The JSON must contain: slug (lowercase English kebab-case), title, category_slug, description, inputs, formula, result_config, content, tests.
 inputs: 1-5 items with id (English camelCase), label (Hebrew), type number or range, sensible min/max/step/defaultValue, optional unit and helpText.
 formula is a safe expression tree. Allowed leaves: {"op":"input","id":"..."}, {"op":"const","value":number}. Allowed multi ops: add,sub,mul,div,min,max,pow with args array. Allowed unary ops: round,floor,ceil,abs with arg.
 result_config: label in Hebrew, optional unit/prefix/suffix, decimals 0-2.
 content: explanation, example, disclaimer and faqs array of 3 Hebrew question/answer objects.
+tests: 3-6 objects with name, inputs object and expected number. Include zero/boundary and a realistic case.
 Build a genuinely useful working calculator from the title. For lifetime-time questions, ask current age plus relevant average frequency/duration and calculate the lifetime total. Do not use current laws or rates unless the title requires them.`
 
 function parseJson(text: string) {
@@ -196,6 +205,27 @@ function validateDefinition(value: any) {
     throw new Error("AI returned an unsafe formula")
   }
   visit(value.formula)
+  if (!Array.isArray(value.tests) || value.tests.length < 2 || value.tests.length > 8) throw new Error("AI omitted formula tests")
+  const evaluate = (node: any, inputs: Record<string, number>, depth = 0): number => {
+    if (depth > 20) throw new Error("formula depth")
+    if (node.op === "const") return Number(node.value)
+    if (node.op === "input") return Number(inputs[node.id] ?? 0)
+    if (["round", "floor", "ceil", "abs"].includes(node.op)) { const n = evaluate(node.arg, inputs, depth + 1); return node.op === "round" ? Math.round(n) : node.op === "floor" ? Math.floor(n) : node.op === "ceil" ? Math.ceil(n) : Math.abs(n) }
+    const args = node.args.map((child: any) => evaluate(child, inputs, depth + 1))
+    if (node.op === "add") return args.reduce((a: number, b: number) => a + b, 0)
+    if (node.op === "sub") return args.slice(1).reduce((a: number, b: number) => a - b, args[0] ?? 0)
+    if (node.op === "mul") return args.reduce((a: number, b: number) => a * b, 1)
+    if (node.op === "div") return args.slice(1).reduce((a: number, b: number) => b === 0 ? NaN : a / b, args[0] ?? 0)
+    if (node.op === "min") return Math.min(...args)
+    if (node.op === "max") return Math.max(...args)
+    return Math.pow(args[0] ?? 0, args[1] ?? 1)
+  }
+  for (const test of value.tests) {
+    if (!test || typeof test.name !== "string" || !test.inputs || !Number.isFinite(test.expected)) throw new Error("AI returned invalid formula tests")
+    const actual = evaluate(value.formula, test.inputs)
+    const tolerance = Math.max(0.01, Math.abs(test.expected) * 0.001)
+    if (!Number.isFinite(actual) || Math.abs(actual - test.expected) > tolerance) throw new Error(`בדיקת הנוסחה נכשלה: ${test.name}`)
+  }
   return value
 }
 
@@ -224,32 +254,105 @@ Deno.serve(async (req: Request) => {
       return r.text
     }
 
+    const log = async (actionName: string, entityId: string | null, status: "success" | "error", message: string, metadata: Record<string, unknown> = {}) => {
+      await db.from("admin_activity_logs").insert({ action: actionName, entity_type: "calculator", entity_id: entityId, status, message, metadata })
+    }
+
+    const saveDraft = async (definition: any, queueId: string | null, summary: string) => {
+      definition.calculator_id = definition.slug
+      const { data, error } = await db.rpc("save_calculator_draft", { p_definition: definition, p_queue_id: queueId, p_change_summary: summary })
+      if (error) throw error
+      return data
+    }
+
     switch (action) {
       case "create_calculator": {
         const title = String(calculator_title ?? "").trim().slice(0, 160)
         if (title.length < 3) throw new Error("יש להזין כותרת למחשבון")
+        const { data: duplicate } = await db.from("calculator_definitions").select("slug,title,status").ilike("title", title).limit(1).maybeSingle()
+        if (duplicate) throw new Error(`כבר קיים מחשבון דומה: ${duplicate.title} (${duplicate.slug}). פתח אותו ובקש שינוי במקום ליצור כפילות`)
         const raw = await ai(CALCULATOR_SYSTEM, `Create a complete calculator for this exact idea: ${title}`, 2600)
         const definition = validateDefinition(parseJson(raw))
         definition.title = title
         definition.category_slug = String(definition.category_slug || "general-tools").slice(0, 80)
         const calculatorId = definition.slug
-        const { data: saved, error: saveError } = await db.from("calculator_definitions").upsert({
-          calculator_id: calculatorId, slug: definition.slug, title: definition.title,
-          category_slug: definition.category_slug, description: definition.description,
-          inputs: definition.inputs, formula: definition.formula,
-          result_config: definition.result_config ?? {}, content: definition.content ?? {}, updated_at: new Date().toISOString(),
-        }, { onConflict: "slug" }).select().single()
-        if (saveError) throw saveError
-        const { data: positionRows } = await db.from("calculator_queue").select("position").eq("status", "pending").order("position", { ascending: false }).limit(1)
-        const { error: queueError } = await db.from("calculator_queue").insert({
-          calculator_id: calculatorId, calculator_slug: definition.slug, calculator_title: definition.title,
-          calculator_category: definition.category_slug, position: (positionRows?.[0]?.position ?? 0) + 1,
-          notes: "נוצר אוטומטית על ידי AI — כולל שדות, נוסחה ותוכן",
-        })
-        if (queueError) throw queueError
-        createdCalculator = saved
+        definition.calculator_id = calculatorId
+        createdCalculator = await saveDraft(definition, null, `יצירת טיוטה: ${title}`)
+        await log("create_draft", definition.slug, "success", `נוצרה טיוטה מלאה: ${title}`, { provider: usedProvider, model: usedModel })
         resultText = "המחשבון המלא נוצר בהצלחה"
         break
+      }
+
+      case "complete_calculator": {
+        const slug = String(context?.slug ?? "")
+        const { data: item, error } = await db.from("calculator_queue").select("*").eq("calculator_slug", slug).order("added_at", { ascending: false }).limit(1).single()
+        if (error || !item) throw new Error("המחשבון הישן לא נמצא")
+        const raw = await ai(CALCULATOR_SYSTEM, `Complete this existing calculator. Keep exact slug ${slug} and exact title: ${item.calculator_title}`, 2600)
+        const definition = validateDefinition(parseJson(raw)); definition.slug = slug; definition.title = item.calculator_title; definition.calculator_id = item.calculator_id
+        createdCalculator = await saveDraft(definition, item.id, `השלמת מחשבון ישן: ${item.calculator_title}`)
+        await log("complete_legacy", slug, "success", `הושלם מחשבון ישן: ${item.calculator_title}`)
+        resultText = "המחשבון הישן הושלם ונשמר כטיוטה"
+        break
+      }
+
+      case "refine_calculator": {
+        const slug = String(context?.slug ?? "")
+        const instruction = String(context?.instruction ?? "").trim().slice(0, 1000)
+        const { data: current, error } = await db.from("calculator_definitions").select("*").eq("slug", slug).single()
+        if (error || !current) throw new Error("הטיוטה לא נמצאה")
+        const raw = await ai(CALCULATOR_SYSTEM, `Revise this calculator according to the Hebrew instruction. Keep the exact slug and return the complete updated JSON.\nInstruction: ${instruction}\nCurrent: ${JSON.stringify(current)}`, 3000)
+        const definition = validateDefinition(parseJson(raw)); definition.slug = slug; definition.calculator_id = current.calculator_id
+        createdCalculator = await saveDraft(definition, null, instruction)
+        await log("refine_draft", slug, "success", `הטיוטה עודכנה: ${instruction}`, { version: createdCalculator.version })
+        resultText = "הטיוטה עודכנה ונשמרה כגרסה חדשה"
+        break
+      }
+
+      case "publish_calculator": {
+        const slug = String(context?.slug ?? "")
+        const [{ data: definition }, { count: imageCount }] = await Promise.all([
+          db.from("calculator_definitions").select("tests").eq("slug", slug).single(),
+          db.from("calculator_media_assets").select("id", { count: "exact", head: true }).eq("calculator_slug", slug).eq("approval_status", "approved"),
+        ])
+        if (!Array.isArray(definition?.tests) || definition.tests.length < 2) throw new Error("המחשבון חסר בדיקות נוסחה")
+        if (!imageCount) throw new Error("יש לאשר תמונה לפני פרסום המחשבון")
+        const { error } = await db.rpc("publish_calculator", { p_slug: slug })
+        if (error) throw error
+        await log("publish", slug, "success", "המחשבון פורסם")
+        resultText = "המחשבון פורסם בהצלחה"
+        break
+      }
+
+      case "archive_calculator": {
+        const slug = String(context?.slug ?? "")
+        const { error } = await db.from("calculator_definitions").update({ status: "archived", updated_at: new Date().toISOString() }).eq("slug", slug)
+        if (error) throw error
+        await db.from("calculator_queue").update({ status: "skipped" }).eq("calculator_slug", slug).eq("status", "pending")
+        await log("archive", slug, "success", "המחשבון הועבר לארכיון")
+        resultText = "המחשבון הועבר לארכיון וניתן לשחזור מהיסטוריית הגרסאות"
+        break
+      }
+
+      case "restore_version": {
+        const versionId = String(context?.version_id ?? "")
+        const { data: version, error } = await db.from("calculator_definition_versions").select("snapshot,calculator_definition_id").eq("id", versionId).single()
+        if (error || !version) throw new Error("הגרסה לא נמצאה")
+        const snapshot = version.snapshot; snapshot.status = "draft"
+        createdCalculator = await saveDraft(snapshot, null, `שחזור גרסה ${snapshot.version}`)
+        await log("restore_version", snapshot.slug, "success", "שוחזרה גרסה קודמת")
+        resultText = "הגרסה שוחזרה כטיוטה חדשה"
+        break
+      }
+
+      case "admin_state": {
+        const slug = String(context?.slug ?? "")
+        const [definitions, versions, logs, usage] = await Promise.all([
+          db.from("calculator_definitions").select("*").order("updated_at", { ascending: false }).limit(100),
+          slug ? db.from("calculator_definition_versions").select("*").eq("calculator_definition_id", context?.definition_id).order("version", { ascending: false }) : Promise.resolve({ data: [] }),
+          db.from("admin_activity_logs").select("*").order("created_at", { ascending: false }).limit(100),
+          db.from("ai_usage_ledger").select("*").gte("created_at", new Date(Date.now() - 86400000).toISOString()),
+        ])
+        return new Response(JSON.stringify({ ok: true, definitions: definitions.data ?? [], versions: versions.data ?? [], logs: logs.data ?? [], usage: usage.data ?? [] }), { headers: { ...corsHeaders, "Content-Type": "application/json" } })
       }
       // ── 1. סיכום ──────────────────────────────────────────────
       case "summary":

@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import {
   Sparkles, FileText, Newspaper, Shuffle, Tags, Share2,
@@ -137,8 +137,8 @@ interface AiTabProps {
 
 export function AiTab({ queue }: AiTabProps) {
   const pendingCalcs = queue.filter(q => q.status === "pending")
-  const [selectedCalcId, setSelectedCalcId] = useState(pendingCalcs[0]?.calculator_id ?? "")
-  const [selectedCalcTitle, setSelectedCalcTitle] = useState(pendingCalcs[0]?.calculator_title ?? "")
+  const [selectedCalcId, setSelectedCalcId] = useState(queue[0]?.calculator_id ?? "")
+  const [selectedCalcTitle, setSelectedCalcTitle] = useState(queue[0]?.calculator_title ?? "")
   const [results, setResults] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState<Record<string, boolean>>({})
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
@@ -147,11 +147,30 @@ export function AiTab({ queue }: AiTabProps) {
   const [domainCtx, setDomainCtx] = useState<Record<string, Record<string, string>>>({})
   const [agentPrompt, setAgentPrompt] = useState("")
   const [agentBusy, setAgentBusy] = useState(false)
+  const [currentCalculator, setCurrentCalculator] = useState<{ id: string; slug: string; title: string; calculator_id: string; description: string; version?: number } | null>(null)
+  const [agentState, setAgentState] = useState<{ versions: Array<{ id: string; version: number; change_summary: string; created_at: string }>; logs: Array<{ id: string; message: string; status: string; created_at: string }>; usage: Array<{ operation: string; cost_in_usd_ticks?: number | null }> }>({ versions: [], logs: [], usage: [] })
   const [agentMessages, setAgentMessages] = useState<Array<{ role: "user" | "agent"; text: string; url?: string }>>([
     { role: "agent", text: "שלום, אני סוכן ניהול המחשבונים. כתוב לי רעיון או כותרת ואכין מחשבון מלא עם שדות, נוסחה, תוכן ותמונת טיוטה." },
   ])
   const setCtx = (featureId: string, key: string, val: string) =>
     setDomainCtx(prev => ({ ...prev, [featureId]: { ...(prev[featureId] ?? {}), [key]: val } }))
+
+  useEffect(() => {
+    if (!currentCalculator) return
+    adminFetch("ai-crm-assistant", { method: "POST", body: JSON.stringify({ action: "admin_state", context: { slug: currentCalculator.slug, definition_id: currentCalculator.id } }) })
+      .then(response => response.json()).then(data => { if (data.ok) setAgentState({ versions: data.versions ?? [], logs: data.logs ?? [], usage: data.usage ?? [] }) }).catch(() => {})
+  }, [currentCalculator])
+
+  const restoreVersion = async (versionId: string) => {
+    if (!window.confirm("לשחזר גרסה זו כטיוטה חדשה?")) return
+    setAgentBusy(true)
+    try {
+      const response = await adminFetch("ai-crm-assistant", { method: "POST", body: JSON.stringify({ action: "restore_version", context: { version_id: versionId } }) })
+      const data = await response.json(); if (!response.ok || !data.ok) throw new Error(data.error ?? "השחזור נכשל")
+      setCurrentCalculator(data.calculator); setAgentMessages(current => [...current, { role: "agent", text: data.result, url: `/calculators/${data.calculator.slug}` }])
+    } catch (error) { setAgentMessages(current => [...current, { role: "agent", text: error instanceof Error ? error.message : "השחזור נכשל" }]) }
+    finally { setAgentBusy(false) }
+  }
 
   const run = async (feature: AiFeature) => {
     setLoading(p => ({ ...p, [feature.id]: true }))
@@ -184,11 +203,25 @@ export function AiTab({ queue }: AiTabProps) {
     setAgentPrompt("")
     setAgentBusy(true)
     try {
-      const response = await adminFetch("ai-crm-assistant", { method: "POST", body: JSON.stringify({ action: "create_calculator", calculator_title: prompt }) })
+      let action = currentCalculator ? "refine_calculator" : "create_calculator"
+      let context: Record<string, unknown> | undefined = currentCalculator ? { slug: currentCalculator.slug, instruction: prompt } : undefined
+      if (currentCalculator && /פרס[םו]|publish/i.test(prompt)) {
+        if (!window.confirm(`לפרסם את ${currentCalculator.title} לציבור?`)) throw new Error("הפרסום בוטל")
+        action = "publish_calculator"; context = { slug: currentCalculator.slug }
+      } else if (currentCalculator && /מחק|ארכ/i.test(prompt)) {
+        if (!window.confirm(`להעביר את ${currentCalculator.title} לארכיון?`)) throw new Error("הארכוב בוטל")
+        action = "archive_calculator"; context = { slug: currentCalculator.slug }
+      }
+      const response = await adminFetch("ai-crm-assistant", { method: "POST", body: JSON.stringify({ action, calculator_title: prompt, context }) })
       const data = await response.json()
-      if (!response.ok || !data.ok || !data.calculator) throw new Error(data.error ?? "יצירת המחשבון נכשלה")
+      if (!response.ok || !data.ok) throw new Error(data.error ?? "הפעולה נכשלה")
+      if (data.calculator) setCurrentCalculator(data.calculator)
+      if (!data.calculator) {
+        setAgentMessages(current => [...current, { role: "agent", text: data.result }])
+        return
+      }
       let imageMessage = ""
-      try {
+      if (action === "create_calculator" || /תמונה|image/i.test(prompt)) try {
         const imageResponse = await adminFetch("calculator-image", { method: "POST", body: JSON.stringify({ action: "generate", calculator_id: data.calculator.calculator_id, calculator_slug: data.calculator.slug, calculator_title: data.calculator.title, description: data.calculator.description }) })
         const imageData = await imageResponse.json()
         imageMessage = imageResponse.ok && imageData.ok ? " יצרתי גם תמונה ייחודית כטיוטה לאישור בלשונית תמונות." : ` המחשבון נוצר, אך התמונה נכשלה: ${imageData.error ?? "שגיאה"}.`
@@ -199,12 +232,28 @@ export function AiTab({ queue }: AiTabProps) {
     } finally { setAgentBusy(false) }
   }
 
+  const completeSelected = async () => {
+    const selected = queue.find(item => item.calculator_id === selectedCalcId)
+    if (!selected || agentBusy) return
+    setAgentBusy(true)
+    setAgentMessages(current => [...current, { role: "user", text: `השלם את המחשבון הישן: ${selected.calculator_title}` }])
+    try {
+      const response = await adminFetch("ai-crm-assistant", { method: "POST", body: JSON.stringify({ action: "complete_calculator", context: { slug: selected.calculator_slug } }) })
+      const data = await response.json()
+      if (!response.ok || !data.ok) throw new Error(data.error ?? "השלמת המחשבון נכשלה")
+      setCurrentCalculator(data.calculator)
+      setAgentMessages(current => [...current, { role: "agent", text: "המחשבון הישן הושלם כטיוטה מלאה. אפשר להמשיך ולבקש ממני שינויים.", url: `/calculators/${data.calculator.slug}` }])
+    } catch (error) { setAgentMessages(current => [...current, { role: "agent", text: `הפעולה נכשלה: ${error instanceof Error ? error.message : "שגיאה"}` }]) }
+    finally { setAgentBusy(false) }
+  }
+
   return (
     <div className="space-y-6" dir="rtl">
       <section className="overflow-hidden rounded-2xl border border-violet-300 bg-card shadow-sm">
         <header className="flex items-center gap-3 bg-gradient-to-l from-violet-600 to-indigo-600 p-5 text-white"><Bot className="h-7 w-7" /><div><h2 className="text-lg font-extrabold">סוכן מנהל האתר</h2><p className="text-xs text-white/80">יצירת מחשבון מלא מכותרת אחת · טיוטה · תמונה · בדיקה · פרסום</p></div></header>
         <div className="max-h-80 space-y-3 overflow-y-auto p-5">{agentMessages.map((message, index) => <div key={index} className={cn("max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-6", message.role === "user" ? "mr-auto bg-primary text-primary-foreground" : "ml-auto bg-muted text-foreground")}><p>{message.text}</p>{message.url ? <Link to={message.url} target="_blank" className="mt-2 inline-flex items-center gap-1 font-bold text-primary underline"><ExternalLink className="h-3.5 w-3.5" />פתח טיוטה</Link> : null}</div>)}{agentBusy ? <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />הסוכן בונה שדות, נוסחה, תוכן ותמונה…</div> : null}</div>
-        <div className="flex gap-2 border-t p-4"><input value={agentPrompt} onChange={event => setAgentPrompt(event.target.value)} onKeyDown={event => { if (event.key === "Enter") runAgent() }} placeholder="לדוגמה: צור מחשבון כמה שניות חיית עד היום" className="flex-1 rounded-xl border bg-background px-4 py-3 outline-none focus:ring-2 focus:ring-primary" /><button onClick={runAgent} disabled={agentBusy || !agentPrompt.trim()} className="flex items-center gap-2 rounded-xl bg-primary px-5 font-bold text-primary-foreground disabled:opacity-50"><Send className="h-4 w-4" />שלח</button></div>
+        {currentCalculator ? <div className="border-t bg-muted/30 p-4"><div className="mb-3 flex items-center justify-between"><div><span className="font-bold">טיוטה פעילה: {currentCalculator.title}</span><span className="mr-2 text-xs text-muted-foreground">גרסה {currentCalculator.version ?? 1}</span></div><button onClick={() => setCurrentCalculator(null)} className="text-xs text-primary underline">התחל מחשבון חדש</button></div><iframe title="תצוגה מקדימה של המחשבון" src={`/calculators/${currentCalculator.slug}`} className="h-[520px] w-full rounded-xl border bg-background" /><div className="mt-4 grid gap-4 md:grid-cols-2"><section className="rounded-xl border bg-card p-4"><h3 className="mb-2 font-bold">היסטוריית גרסאות</h3><div className="space-y-2">{agentState.versions.slice(0, 6).map(version => <div key={version.id} className="flex items-center justify-between rounded-lg bg-muted p-2 text-xs"><span>גרסה {version.version} · {version.change_summary}</span><button onClick={() => restoreVersion(version.id)} className="font-bold text-primary">שחזר</button></div>)}</div></section><section className="rounded-xl border bg-card p-4"><h3 className="mb-2 font-bold">שימוש ב־24 שעות</h3><p className="text-sm">טקסט: {agentState.usage.filter(item => item.operation === "text").length} · תמונות: {agentState.usage.filter(item => item.operation === "image").length}</p><p className="mt-2 text-xs text-muted-foreground">עלות מדווחת: {agentState.usage.reduce((sum, item) => sum + Number(item.cost_in_usd_ticks ?? 0), 0).toLocaleString()} ticks</p></section></div></div> : null}
+        <div className="flex flex-wrap gap-2 border-t p-4"><input value={agentPrompt} onChange={event => setAgentPrompt(event.target.value)} onKeyDown={event => { if (event.key === "Enter") runAgent() }} placeholder={currentCalculator ? "בקש שינוי, למשל: הוסף שדה או הצג תוצאה בשעות" : "לדוגמה: צור מחשבון כמה שניות חיית עד היום"} className="min-w-64 flex-1 rounded-xl border bg-background px-4 py-3 outline-none focus:ring-2 focus:ring-primary" /><button onClick={runAgent} disabled={agentBusy || !agentPrompt.trim()} className="flex items-center gap-2 rounded-xl bg-primary px-5 font-bold text-primary-foreground disabled:opacity-50"><Send className="h-4 w-4" />שלח</button>{!currentCalculator && selectedCalcId ? <button onClick={completeSelected} disabled={agentBusy} className="rounded-xl border px-4 py-2 text-sm font-bold">השלם מחשבון ישן עם AI</button> : null}</div>
       </section>
       {/* Header */}
       <div className="bg-gradient-to-l from-violet-50/50 to-indigo-50/50 dark:from-violet-950/20 dark:to-indigo-950/20 rounded-2xl border border-violet-200/50 dark:border-violet-800/30 p-5">
@@ -225,15 +274,15 @@ export function AiTab({ queue }: AiTabProps) {
             <select
               value={selectedCalcId}
               onChange={e => {
-                const calc = pendingCalcs.find(q => q.calculator_id === e.target.value)
+                const calc = queue.find(q => q.calculator_id === e.target.value)
                 setSelectedCalcId(e.target.value)
                 setSelectedCalcTitle(calc?.calculator_title ?? "")
               }}
               className="w-full px-3 py-2 text-sm rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             >
-              {pendingCalcs.length === 0 && <option value="">אין מחשבונים בתור</option>}
-              {pendingCalcs.map(q => (
-                <option key={q.id} value={q.calculator_id}>{q.calculator_title}</option>
+              {queue.length === 0 && <option value="">אין מחשבונים</option>}
+              {queue.map(q => (
+                <option key={q.id} value={q.calculator_id}>{q.calculator_title} · {q.status}</option>
               ))}
             </select>
           </div>
