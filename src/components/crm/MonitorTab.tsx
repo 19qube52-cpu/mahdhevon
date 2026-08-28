@@ -5,9 +5,8 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { supabase } from "@/lib/supabase"
+import { adminFetch } from "@/lib/admin-api"
 
-const SUPA_URL = import.meta.env.VITE_SUPABASE_URL as string
-const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string
 
 type CheckStatus = "pending" | "running" | "pass" | "fail" | "skip"
 
@@ -65,9 +64,9 @@ const CHECKS: HealthCheck[] = [
     icon: <Zap className="w-4 h-4" />,
     run: async () => {
       const t0 = Date.now()
-      const res = await fetch(`${SUPA_URL}/functions/v1/publish-daily-calculator`, {
+      const res = await adminFetch("publish-daily-calculator", {
         method: "POST",
-        headers: { Authorization: `Bearer ${ANON_KEY}`, "Content-Type": "application/json" },
+
         body: JSON.stringify({ dry_run: true }),
       }).catch((e: Error) => ({ ok: false, status: 0, text: async () => e.message }))
       if (!res.ok && (res as Response).status !== 200) {
@@ -81,9 +80,8 @@ const CHECKS: HealthCheck[] = [
     icon: <Zap className="w-4 h-4" />,
     run: async () => {
       const t0 = Date.now()
-      const res = await fetch(`${SUPA_URL}/functions/v1/ai-crm-assistant`, {
+      const res = await adminFetch("ai-crm-assistant", {
         method: "OPTIONS",
-        headers: { Authorization: `Bearer ${ANON_KEY}` },
       }).catch(() => null)
       return { ok: res?.ok ?? false, detail: res?.ok ? "זמין" : "לא מגיב", latencyMs: Date.now() - t0 }
     },
@@ -93,9 +91,8 @@ const CHECKS: HealthCheck[] = [
     icon: <Zap className="w-4 h-4" />,
     run: async () => {
       const t0 = Date.now()
-      const res = await fetch(`${SUPA_URL}/functions/v1/telegram-alerts`, {
-        method: "OPTIONS",
-        headers: { Authorization: `Bearer ${ANON_KEY}` },
+      const res = await adminFetch("telegram-alerts", {
+        method: "POST", body: JSON.stringify({ action: "test" }),
       }).catch(() => null)
       return { ok: res?.ok ?? false, detail: res?.ok ? "זמין" : "לא מגיב", latencyMs: Date.now() - t0 }
     },
@@ -105,9 +102,9 @@ const CHECKS: HealthCheck[] = [
     icon: <Zap className="w-4 h-4" />,
     run: async () => {
       const t0 = Date.now()
-      const res = await fetch(`${SUPA_URL}/functions/v1/provider-manager`, {
+      const res = await adminFetch("provider-manager", {
         method: "OPTIONS",
-        headers: { Authorization: `Bearer ${ANON_KEY}` },
+
       }).catch(() => null)
       return { ok: res?.ok ?? false, detail: res?.ok ? "זמין" : "לא מגיב", latencyMs: Date.now() - t0 }
     },

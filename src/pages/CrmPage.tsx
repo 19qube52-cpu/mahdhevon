@@ -8,31 +8,26 @@ import {
   Play, ArrowUp, ArrowDown, Plus, Trash2, SkipForward,
   Calendar, CheckCircle2, Clock, AlertCircle, RefreshCw,
   ExternalLink, Loader2, Calculator, Star, Pencil,
-  ChevronRight, Sparkles, TrendingUp, Activity
+  ChevronRight, Sparkles, TrendingUp, Activity, ImagePlus
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { supabase, type QueueItem, type DailyFeatured } from "@/lib/supabase"
+import { adminFetch } from "@/lib/admin-api"
 import { calculators } from "@/data/calculators"
 import { EditItemDialog, CreateItemDialog, DeleteDialog } from "@/components/crm/CrudDialogs"
 import { AiTab } from "@/components/crm/AiTab"
 import { ProvidersTab } from "@/components/crm/ProvidersTab"
 import { MonitorTab } from "@/components/crm/MonitorTab"
+import { ImageManagerTab } from "@/components/crm/ImageManagerTab"
 
 // ─── Edge-function helper ─────────────────────────────────────────
 async function crmOp(body: Record<string, unknown>): Promise<void> {
-  const res = await fetch(
-    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/crm-operations`,
-    {
-      method: "POST",
-      headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    }
-  )
+  const res = await adminFetch("crm-operations", { method: "POST", body: JSON.stringify(body) })
   const data = await res.json()
   if (!res.ok || !data.ok) throw new Error(data.error ?? `HTTP ${res.status}`)
 }
 
-type Tab = "dashboard" | "queue" | "history" | "ai" | "providers" | "monitor" | "settings"
+type Tab = "dashboard" | "queue" | "history" | "ai" | "images" | "providers" | "monitor" | "settings"
 
 const CATEGORY_LABELS: Record<string, string> = {
   "salary-tax": "שכר ומסים", "mortgage-loans": "משכנתא", "health": "בריאות",
@@ -45,6 +40,42 @@ export default function CrmPage() {
   const { user, loading: authLoading, openAuthDialog } = useAuth()
   const isAdmin = useIsAdmin()
 
+
+  const [tab, setTab] = useState<Tab>("dashboard")
+  const [queue, setQueue] = useState<QueueItem[]>([])
+  const [history, setHistory] = useState<DailyFeatured[]>([])
+  const [todayFeatured, setTodayFeatured] = useState<DailyFeatured | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [publishing, setPublishing] = useState(false)
+  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null)
+
+  // CRUD dialog state
+  const [editingItem, setEditingItem] = useState<QueueItem | null>(null)
+  const [deletingItem, setDeletingItem] = useState<QueueItem | null>(null)
+  const [showCreate, setShowCreate] = useState(false)
+
+  const showToast = (msg: string, type: "success" | "error" = "success") => {
+    setToast({ msg, type })
+    setTimeout(() => setToast(null), 3500)
+  }
+
+  const fetchData = useCallback(async () => {
+    if (!user || !isAdmin) return
+    setLoading(true)
+    const [qRes, hRes] = await Promise.all([
+      supabase.from("calculator_queue").select("*").order("position", { ascending: true }),
+      supabase.from("daily_featured").select("*").order("date", { ascending: false }).limit(60),
+    ])
+    if (qRes.data) setQueue(qRes.data)
+    if (hRes.data) {
+      setHistory(hRes.data)
+      const today = new Date().toISOString().split("T")[0]
+      setTodayFeatured(hRes.data.find(f => f.date === today) ?? null)
+    }
+    setLoading(false)
+  }, [user, isAdmin])
+
+  useEffect(() => { fetchData() }, [fetchData])
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-muted/30">
@@ -82,48 +113,10 @@ export default function CrmPage() {
     )
   }
 
-  const [tab, setTab] = useState<Tab>("dashboard")
-  const [queue, setQueue] = useState<QueueItem[]>([])
-  const [history, setHistory] = useState<DailyFeatured[]>([])
-  const [todayFeatured, setTodayFeatured] = useState<DailyFeatured | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [publishing, setPublishing] = useState(false)
-  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null)
-
-  // CRUD dialog state
-  const [editingItem, setEditingItem] = useState<QueueItem | null>(null)
-  const [deletingItem, setDeletingItem] = useState<QueueItem | null>(null)
-  const [showCreate, setShowCreate] = useState(false)
-
-  const showToast = (msg: string, type: "success" | "error" = "success") => {
-    setToast({ msg, type })
-    setTimeout(() => setToast(null), 3500)
-  }
-
-  const fetchData = useCallback(async () => {
-    setLoading(true)
-    const [qRes, hRes] = await Promise.all([
-      supabase.from("calculator_queue").select("*").order("position", { ascending: true }),
-      supabase.from("daily_featured").select("*").order("date", { ascending: false }).limit(60),
-    ])
-    if (qRes.data) setQueue(qRes.data)
-    if (hRes.data) {
-      setHistory(hRes.data)
-      const today = new Date().toISOString().split("T")[0]
-      setTodayFeatured(hRes.data.find(f => f.date === today) ?? null)
-    }
-    setLoading(false)
-  }, [])
-
-  useEffect(() => { fetchData() }, [fetchData])
-
   const publishToday = async () => {
     setPublishing(true)
     try {
-      const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/publish-daily-calculator`,
-        { method: "POST", headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`, "Content-Type": "application/json" }, body: "{}" }
-      )
+      const res = await adminFetch("publish-daily-calculator", { method: "POST", body: "{}" })
       const data = await res.json()
       if (data.success) {
         showToast(data.already_published ? "כבר פורסם מחשבון היום" : `פורסם: ${data.calculator?.title}`)
@@ -179,9 +172,17 @@ export default function CrmPage() {
     await fetchData()
   }
 
-  const createItem = async (fields: { calculator_id: string; calculator_slug: string; calculator_title: string; calculator_category: string | null; position: number; notes: string | null; scheduled_date: string | null }) => {
-    try { await crmOp({ type: "add", ...fields }) } catch (e) { showToast((e as Error).message, "error"); return }
-    showToast("נוסף לתור")
+  const createItem = async (fields: { calculator_id: string; calculator_slug: string; calculator_title: string; calculator_category: string | null; position: number; notes: string | null; scheduled_date: string | null; generate_image: boolean }) => {
+    const { generate_image, ...queueFields } = fields
+    try { await crmOp({ type: "add", ...queueFields }) } catch (e) { showToast((e as Error).message, "error"); return }
+    if (generate_image) {
+      try {
+        const response = await adminFetch("calculator-image", { method: "POST", body: JSON.stringify({ action: "generate", ...queueFields, description: fields.notes ?? fields.calculator_category ?? "" }) })
+        const result = await response.json()
+        if (!response.ok || !result.ok) throw new Error(result.error ?? "יצירת התמונה נכשלה")
+        showToast("המחשבון נוסף והתמונה נוצרה כטיוטה")
+      } catch (e) { showToast(`המחשבון נוסף, אך התמונה נכשלה: ${(e as Error).message}`, "error") }
+    } else showToast("נוסף לתור")
     await fetchData()
   }
 
@@ -204,6 +205,7 @@ export default function CrmPage() {
     { id: "queue",     label: "תור פרסום",  icon: <ListOrdered className="w-4 h-4" />,  badge: pending.length },
     { id: "history",   label: "היסטוריה",   icon: <History className="w-4 h-4" /> },
     { id: "ai",        label: "AI",          icon: <Sparkles className="w-4 h-4" /> },
+    { id: "images",    label: "תמונות",     icon: <ImagePlus className="w-4 h-4" /> },
     { id: "providers", label: "מפתחות AI",  icon: <Settings className="w-4 h-4" /> },
     { id: "monitor",   label: "מוניטור",    icon: <Activity className="w-4 h-4" /> },
     { id: "settings",  label: "הגדרות",     icon: <Calculator className="w-4 h-4" /> },
@@ -322,6 +324,7 @@ export default function CrmPage() {
               )}
               {tab === "history" && <HistoryTab history={history} />}
               {tab === "ai" && <AiTab queue={queue} />}
+              {tab === "images" && <ImageManagerTab queue={queue} onToast={showToast} />}
               {tab === "providers" && <ProvidersTab onToast={showToast} />}
               {tab === "monitor" && <MonitorTab />}
               {tab === "settings" && <SettingsTab daysLeft={pending.length} />}

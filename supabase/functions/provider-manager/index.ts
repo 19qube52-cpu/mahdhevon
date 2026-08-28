@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { createClient } from "npm:@supabase/supabase-js@2"
+import { authErrorResponse, requireAdmin } from "../_shared/admin-auth.ts"
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -16,6 +17,7 @@ Deno.serve(async (req: Request) => {
   )
 
   try {
+    await requireAdmin(req)
     const body = await req.json()
     const { action } = body
 
@@ -102,6 +104,8 @@ Deno.serve(async (req: Request) => {
         return new Response(JSON.stringify({ error: "Unknown action" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } })
     }
   } catch (err) {
+    const authResponse = authErrorResponse(err, corsHeaders)
+    if (authResponse) return authResponse
     return new Response(
       JSON.stringify({ ok: false, error: err instanceof Error ? err.message : String(err) }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }

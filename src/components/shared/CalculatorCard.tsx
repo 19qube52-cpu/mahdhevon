@@ -36,6 +36,9 @@ export default function CalculatorCard({ calculator, variant = "default" }: Calc
       to={`/calculators/${calculator.slug}`}
       className="flex flex-col p-5 rounded-xl border border-border bg-card hover:border-primary/50 hover:shadow-md transition-all group"
     >
+      <div className="-mx-5 -mt-5 mb-4 aspect-[16/9] overflow-hidden rounded-t-xl bg-muted">
+        <img src={`/assets/calculators/${calculator.slug}.jpg`} alt={`תמונת המחשה עבור ${calculator.title}`} loading="lazy" decoding="async" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+      </div>
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center shrink-0">
           <Calculator className="w-5 h-5 text-primary" />

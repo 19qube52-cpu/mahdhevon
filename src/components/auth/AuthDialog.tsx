@@ -63,7 +63,7 @@ export default function AuthDialog({ open, onOpenChange, onSuccess }: AuthDialog
           </DialogTitle>
           <DialogDescription>
             {mode === "signin"
-              ? "התחבר כדי לשמור מחשבונים, תוצאות וניתוחי AI."
+              ? "התחבר כדי לשמור מחשבונים, ותוצאות."
               : "הרשמה מהירה — רק אימייל וסיסמה, בלי אישור מייל."}
           </DialogDescription>
         </DialogHeader>

@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "images:generate": "node scripts/generate-calculator-images.mjs --execute"
   },
   "dependencies": {
     "@fontsource/heebo": "^5.1.0",

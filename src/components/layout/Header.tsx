@@ -1,11 +1,10 @@
 import { Link, useLocation } from "react-router-dom"
-import { Calculator, Menu, X, Search, Moon, Sun, Share2, Check, FileText, LayoutDashboard, Scale, Sparkles } from "lucide-react"
+import { Calculator, Menu, X, Search, Moon, Sun, Share2, Check, LayoutDashboard, Sparkles } from "lucide-react"
 import { useState } from "react"
 import { useTheme } from "@/components/theme-provider"
 import { categories } from "@/data/categories"
 import { cn } from "@/lib/utils"
 import CommandPalette, { useCommandPalette } from "@/components/shared/CommandPalette"
-import AccountMenu from "@/components/layout/AccountMenu"
 import { useIsAdmin } from "@/hooks/use-is-admin"
 
 export default function Header() {
@@ -70,14 +69,6 @@ export default function Header() {
             </Link>
             )}
 
-          {/* Letter explainer CTA */}
-            <Link
-              to="/letter-explainer"
-              className="hidden lg:flex items-center gap-1.5 px-3 py-2 text-sm font-bold rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-            >
-              <FileText className="w-4 h-4" />
-              מפענח מכתבים AI
-            </Link>
 
           {/* Fun calculators CTA */}
             <Link
@@ -88,14 +79,6 @@ export default function Header() {
               מחשבונים מגניבים
             </Link>
 
-          {/* Rights portal CTA */}
-            <Link
-              to="/rights"
-              className="hidden lg:flex items-center gap-1.5 px-3 py-2 text-sm font-bold rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-            >
-              <Scale className="w-4 h-4" />
-              פורטל הזכויות
-            </Link>
 
             {/* Search - opens command palette */}
             <button
@@ -111,7 +94,6 @@ export default function Header() {
             </button>
 
             {/* Account */}
-            <AccountMenu />
 
             {/* Share URL (only on calculator pages) */}
             {isCalcPage && (
@@ -150,22 +132,6 @@ export default function Header() {
         {menuOpen && (
           <nav className="lg:hidden border-t border-border py-3" aria-label="תפריט נייד">
             <div className="grid grid-cols-1 gap-1.5 mb-3">
-              <Link
-                to="/rights"
-                onClick={() => setMenuOpen(false)}
-                className="flex items-center gap-2 px-3 py-3 rounded-lg text-sm font-bold bg-primary text-primary-foreground"
-              >
-                <Scale className="w-4 h-4" />
-                פורטל הזכויות — מצא מה מגיע לך
-              </Link>
-              <Link
-                to="/letter-explainer"
-                onClick={() => setMenuOpen(false)}
-                className="flex items-center gap-2 px-3 py-3 rounded-lg text-sm font-bold bg-primary/10 text-primary"
-              >
-                <FileText className="w-4 h-4" />
-                מפענח מכתבים AI
-              </Link>
               <Link
                 to="/fun"
                 onClick={() => setMenuOpen(false)}
